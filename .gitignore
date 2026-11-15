@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+.env.local
+
+# بيانات الأسرة الحقيقية — لا تُرفع إلى GitHub أبداً
+*.accdb
+*.laccdb
+public/local/
+
+# إعدادات النسختين (الخاصة والعامة)
+.env.*.local
+
+# ملفات خاصة بصاحب المشروع
+scripts/
+prompt.docx
+.claude/

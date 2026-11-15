@@ -1,0 +1,48 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # الإعدادات الافتراضية في .env.production؛ متغيرات المستودع (إن وُجدت) تأخذ الأولوية
+      - run: |
+          if [ -n "$SB_URL" ] && [ -n "$SB_KEY" ]; then
+            export VITE_SUPABASE_URL="$SB_URL" VITE_SUPABASE_ANON_KEY="$SB_KEY"
+          fi
+          if [ -n "$APPLE" ]; then export VITE_ENABLE_APPLE="$APPLE"; fi
+          if [ -n "$IMPORT" ]; then export VITE_ENABLE_IMPORT="$IMPORT"; fi
+          npm run build
+        env:
+          SB_URL: ${{ vars.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          APPLE: ${{ vars.VITE_ENABLE_APPLE }}
+          IMPORT: ${{ vars.VITE_ENABLE_IMPORT }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

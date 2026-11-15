@@ -355,13 +355,50 @@ begin
   return true;
 end $$;
 
+-- ───────────── حذف الأسرة والحساب نهائياً ─────────────
+-- (صور الفواتير يحذفها التطبيق عبر واجهة التخزين قبل استدعاء الدالة)
+create or replace function public.delete_household() returns void
+language plpgsql security definer set search_path = public as $$
+declare h uuid := public.my_household();
+begin
+  if h is null or public.my_role() is distinct from 'admin' then raise exception 'حذف الأسرة لمديرها فقط'; end if;
+  perform set_config('app.skip_audit', 'on', true);
+  update public.profiles set role = 'pending', monthly_budget = null where household_id = h;
+  delete from public.households where id = h; -- يحذف معها البنود والمستفيدين والدخل والمصروفات، ويُخرج الأعضاء منها
+  delete from public.audit_log where household_id = h;
+  delete from public.receipt_scans where household_id = h;
+  perform set_config('app.skip_audit', 'off', true);
+end $$;
+
+create or replace function public.delete_account() returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  h uuid := public.my_household();
+  r text := public.my_role();
+begin
+  if auth.uid() is null then raise exception 'يجب تسجيل الدخول أولاً'; end if;
+  -- المدير الوحيد لأسرة فيها أعضاء آخرون لا يتركها بلا مدير
+  if h is not null and r = 'admin'
+     and not exists (select 1 from public.profiles where household_id = h and role = 'admin' and id <> auth.uid()) then
+    if exists (select 1 from public.profiles where household_id = h and id <> auth.uid() and role <> 'pending') then
+      raise exception 'أنت المدير الوحيد. عيّن مديراً آخر أو احذف الأسرة أولاً';
+    end if;
+    perform public.delete_household(); -- أسرة لا أحد فيها غيره تُحذف مع حسابه
+  end if;
+  perform set_config('app.skip_audit', 'on', true);
+  delete from auth.users where id = auth.uid(); -- يحذف ملفه في profiles، وما سجّله يبقى لأسرته بلا اسم
+  perform set_config('app.skip_audit', 'off', true);
+end $$;
+
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan()
+  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan(),
+  public.delete_household(), public.delete_account()
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan()
+  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan(),
+  public.delete_household(), public.delete_account()
   to authenticated;
 
 -- ───────────── تخزين صور الفواتير (خاص، مجلد لكل أسرة) ─────────────
@@ -369,6 +406,10 @@ insert into storage.buckets (id, name, public) values ('receipts', 'receipts', f
 
 drop policy if exists receipts_read on storage.objects;
 drop policy if exists receipts_insert on storage.objects;
+drop policy if exists receipts_delete on storage.objects;
+create policy receipts_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'receipts' and (storage.foldername(name))[1] = public.my_household()::text
+         and public.my_role() = 'admin');
 create policy receipts_read on storage.objects for select to authenticated
   using (bucket_id = 'receipts' and (storage.foldername(name))[1] = public.my_household()::text
          and public.my_role() in ('admin', 'member', 'viewer'));

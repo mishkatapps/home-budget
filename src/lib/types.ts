@@ -114,6 +114,10 @@ export interface Api {
   joinHousehold(code: string): Promise<void>;
   /** لمن لم يُعتمد بعد: يسحب طلب الانضمام */
   leaveHousehold(): Promise<void>;
+  /** للمدير: يحذف الأسرة وكل بياناتها وصور فواتيرها نهائياً */
+  deleteHousehold(): Promise<void>;
+  /** يحذف حساب المستخدم نهائياً (ومعه أسرته إن لم يكن فيها غيره) */
+  deleteAccount(): Promise<void>;
 
   listProfiles(): Promise<Profile[]>;
   updateProfile(id: string, patch: Partial<Pick<Profile, 'role' | 'monthly_budget'>>): Promise<void>;

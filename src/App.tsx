@@ -87,6 +87,7 @@ export default function App() {
           {appleEnabled && (
             <button className="btn block" onClick={() => api.signIn('apple').catch((e) => setError(e.message))}>الدخول بحساب آبل</button>
           )}
+          <a className="muted small" href="./privacy.html">سياسة الخصوصية</a>
         </div>
       </div>
     );

@@ -105,6 +105,8 @@ export const localApi: Api = {
   async createHousehold() {},
   async joinHousehold() {},
   async leaveHousehold() {},
+  async deleteHousehold() { throw new Error('الحذف غير متاح في الوضع التجريبي.'); },
+  async deleteAccount() { throw new Error('الحذف غير متاح في الوضع التجريبي.'); },
 
   async listProfiles() { return [...(await getDb()).profiles]; },
   async updateProfile(id, patch) {

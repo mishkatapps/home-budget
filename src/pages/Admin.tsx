@@ -216,6 +216,54 @@ function ImportLegacy() {
   );
 }
 
+function DangerZone() {
+  const { me, household, isAdmin, profiles } = useStore();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (api.mode !== 'cloud' || !household) return null;
+  const others = profiles.filter((p) => p.id !== me.id && p.role !== 'pending').length;
+
+  async function go(fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try { await fn(); window.location.reload(); } catch (e) { setError((e as Error).message); setBusy(false); }
+  }
+  function deleteAccount() {
+    const extra = isAdmin && others === 0 ? ' أنت الوحيد في الأسرة، فستُحذف الأسرة وكل بياناتها معه.' : '';
+    if (confirm(`حذف حسابك نهائياً؟${extra} لا يمكن التراجع.`)) go(() => api.deleteAccount());
+  }
+
+  return (
+    <Section title="حذف البيانات" action={<button className="link" onClick={() => setOpen(!open)}>{open ? 'إخفاء' : 'عرض'}</button>}>
+      {open && (
+        <div className="form">
+          {error && <p className="error" role="alert">{error}</p>}
+          {isAdmin && (
+            <>
+              <p className="small">
+                <b>حذف الأسرة:</b> يحذف نهائياً كل الدخل والمصروفات والبنود وصور الفواتير وسجل العمليات لـ«{household.name}»، ويُخرج كل أعضائها. لا يمكن التراجع.
+              </p>
+              <label className="small">للتأكيد اكتب اسم الأسرة: <b>{household.name}</b>
+                <input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+              </label>
+              <button className="btn danger" disabled={busy || typed.trim() !== household.name} onClick={() => go(() => api.deleteHousehold())}>
+                حذف الأسرة وكل بياناتها نهائياً
+              </button>
+            </>
+          )}
+          <p className="small">
+            <b>حذف حسابي:</b> يحذف اسمك وبريدك من التطبيق نهائياً. ما سجّلته من مصروفات يبقى لأسرتك بلا اسم.
+            {isAdmin && others > 0 && ' أنت مدير: عيّن مديراً آخر أولاً أو احذف الأسرة.'}
+          </p>
+          <button className="btn danger" disabled={busy} onClick={deleteAccount}>حذف حسابي نهائياً</button>
+        </div>
+      )}
+    </Section>
+  );
+}
+
 export default function Admin() {
   const { me, isAdmin } = useStore();
   return (
@@ -224,7 +272,10 @@ export default function Admin() {
         <p><b>{me.full_name}</b> · {roleLabel(me.role)}</p>
         <p className="muted small" dir="ltr">{me.email}</p>
         {me.monthly_budget ? <p className="small">ميزانيتك الشهرية: <b className="num">{money(me.monthly_budget)}</b></p> : null}
-        {api.mode === 'cloud' && <button className="btn" onClick={() => api.signOut()}>تسجيل الخروج</button>}
+        <div className="inline">
+          {api.mode === 'cloud' && <button className="btn" onClick={() => api.signOut()}>تسجيل الخروج</button>}
+          <a className="small" href="./privacy.html">سياسة الخصوصية</a>
+        </div>
       </Section>
       {isAdmin && (
         <>
@@ -236,6 +287,7 @@ export default function Admin() {
           {importEnabled && <ImportLegacy />}
         </>
       )}
+      <DangerZone />
     </>
   );
 }

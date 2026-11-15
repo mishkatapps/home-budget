@@ -27,6 +27,23 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     }
   }
 
+  /** يحذف كل صور فواتير أسرة المستخدم: المسار <الأسرة>/<العضو>/<الملف> */
+  async function removeReceipts() {
+    const household = check(await sb.rpc('my_household')) as string | null;
+    if (!household) return;
+    const bucket = sb.storage.from('receipts');
+    const folders = check(await bucket.list(household, { limit: 1000 })) ?? [];
+    for (const folder of folders) {
+      const dir = `${household}/${folder.name}`;
+      for (;;) {
+        const files = check(await bucket.list(dir, { limit: 1000 })) ?? [];
+        if (!files.length) break;
+        check(await bucket.remove(files.map((f) => `${dir}/${f.name}`)));
+        if (files.length < 1000) break;
+      }
+    }
+  }
+
   async function upsertRow(table: string, row: { id?: number | string }) {
     const { id, ...rest } = row;
     if (id != null) check(await sb.from(table).update(rest).eq('id', id));
@@ -69,6 +86,19 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async createHousehold(name) { check(await sb.rpc('create_household', { p_name: name })); },
     async joinHousehold(code) { check(await sb.rpc('join_household', { p_code: code })); },
     async leaveHousehold() { check(await sb.rpc('leave_household')); },
+    async deleteHousehold() {
+      await removeReceipts();
+      check(await sb.rpc('delete_household'));
+    },
+    async deleteAccount() {
+      // إن كان المدير (قد تُحذف أسرته معه) نحذف صور الفواتير أولاً؛ الخادم يرفض إن بقي فيها أعضاء بلا مدير
+      if (check(await sb.rpc('my_role')) === 'admin') {
+        const others = check(await sb.from('profiles').select('id').neq('role', 'pending')) as { id: string }[];
+        if (others.length <= 1) await removeReceipts();
+      }
+      check(await sb.rpc('delete_account'));
+      await sb.auth.signOut({ scope: 'local' });
+    },
 
     async listProfiles() { return check(await sb.from('profiles').select('*').order('created_at')) as Profile[]; },
     async updateProfile(id, patch) { check(await sb.from('profiles').update(patch).eq('id', id)); },

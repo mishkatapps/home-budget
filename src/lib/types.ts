@@ -123,7 +123,7 @@ export interface ReceiptResult {
 export interface LegacyExport {
   categories: string[];
   beneficiaries: string[];
-  incomes: { legacy_id: number; amount: number; received_on: string }[];
+  incomes: { legacy_id: number; amount: number; received_on: string; source?: string; notes?: string }[];
   expenses: {
     legacy_id: number;
     category: string;

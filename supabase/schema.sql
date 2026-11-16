@@ -301,6 +301,10 @@ begin
   perform set_config('app.skip_audit', 'off', true);
 end $$;
 
+-- رقم المصدر عند الاستيراد (أكسيس، نسخة احتياطية، Excel) يحتاج مجالاً أوسع من int
+alter table public.incomes alter column legacy_id type bigint;
+alter table public.expenses alter column legacy_id type bigint;
+
 -- ───────────── المستخدم الجديد ─────────────
 -- كل حساب جديد يبدأ بلا أسرة؛ ثم ينشئ أسرته (فيصير مديرها) أو ينضم برمز دعوة (فينتظر موافقة مديرها)
 create or replace function public.handle_new_user() returns trigger
@@ -516,17 +520,20 @@ begin
     select distinct h, x from jsonb_array_elements_text(coalesce(p -> 'beneficiaries', '[]'::jsonb)) x where x <> ''
     on conflict (household_id, name) do nothing;
 
-  insert into public.incomes (household_id, amount, received_on, legacy_id, created_by)
-    select h, (x ->> 'amount')::numeric, (x ->> 'received_on')::date, (x ->> 'legacy_id')::int, auth.uid()
+  -- رقم سالب = رقم الصف الأصلي في نسخة احتياطية: إن كان الصف ما زال موجوداً في هذه الأسرة فلا يُكرَّر
+  insert into public.incomes (household_id, amount, received_on, source, notes, legacy_id, created_by)
+    select h, (x ->> 'amount')::numeric, (x ->> 'received_on')::date, nullif(x ->> 'source', ''), nullif(x ->> 'notes', ''), (x ->> 'legacy_id')::bigint, auth.uid()
     from jsonb_array_elements(coalesce(p -> 'incomes', '[]'::jsonb)) x
+    where not exists (select 1 from public.incomes i where i.household_id = h and i.id = -((x ->> 'legacy_id')::bigint))
     on conflict (household_id, legacy_id) do nothing;
   get diagnostics ni = row_count;
 
   insert into public.expenses (household_id, category_id, amount, paid_on, beneficiary_id, notes, legacy_id, created_by)
-    select h, c.id, (x ->> 'amount')::numeric, (x ->> 'paid_on')::date, b.id, nullif(x ->> 'notes', ''), (x ->> 'legacy_id')::int, null
+    select h, c.id, (x ->> 'amount')::numeric, (x ->> 'paid_on')::date, b.id, nullif(x ->> 'notes', ''), (x ->> 'legacy_id')::bigint, null
     from jsonb_array_elements(coalesce(p -> 'expenses', '[]'::jsonb)) x
     join public.categories c on c.household_id = h and c.name = x ->> 'category'
     left join public.beneficiaries b on b.household_id = h and b.name = x ->> 'beneficiary'
+    where not exists (select 1 from public.expenses e where e.household_id = h and e.id = -((x ->> 'legacy_id')::bigint))
     on conflict (household_id, legacy_id) do nothing;
   get diagnostics ne = row_count;
 

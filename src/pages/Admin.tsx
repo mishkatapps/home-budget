@@ -7,6 +7,7 @@ import { MishkatCredit } from '../components/Brand';
 import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, type PrefKey } from '../lib/prefs';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 import { AVATARS, budgetOf, nameOf, useStore, type Store } from '../store';
+import Backup from './Backup';
 import { signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
@@ -290,7 +291,7 @@ function Appearance() {
   return (
     <Section title="المظهر">
       <p className="muted small">هذه الاختيارات تخص هذا الجهاز فقط، ولا تغيّر ما يراه باقي أفراد الأسرة.</p>
-      <Choice label="الوضع" options={[['auto', 'تلقائي'], ['light', '☀️ نهاري'], ['dark', '🌙 ليلي']] as const} value={theme} onPick={(v) => { setThemePref(v); setTheme(v); }} />
+      <Choice label="الوضع" options={[['auto', 'تلقائي (حسب الوقت)'], ['light', '☀️ نهاري'], ['dark', '🌙 ليلي']] as const} value={theme} onPick={(v) => { setThemePref(v); setTheme(v); }} />
       <Choice label="حجم الخط" options={FONT_SIZES} value={prefs.fs} onPick={pick('fs')} />
       <Choice label="نوع الخط" options={FONT_FAMILIES} value={prefs.font} onPick={pick('font')} />
       <Choice label="الألوان" options={PALETTES} value={prefs.palette} onPick={pick('palette')} />
@@ -377,6 +378,7 @@ export default function Admin() {
           <NamedList title="بنود المصروفات" kind="categories" hint="البند غير المفعّل يختفي من قائمة التسجيل ويبقى في الإحصاءات. الميزانية الشهرية للبند اختيارية." />
           <NamedList title="المستفيدون" kind="beneficiaries" hint="من صُرف المبلغ لأجله (الأسرة أو أحد أفرادها)." />
           <AuditLog />
+          <Backup />
           {importEnabled && <ImportLegacy />}
         </>
       )}

@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AppInfo, BudgetRow, Grant } from './types';
+import type { AppInfo, BudgetRow, Grant, ReentryMember } from './types';
 import type { Api, AuditEntry, Beneficiary, Category, Expense, Household, Income, Profile, ReceiptResult, SummaryRow } from './types';
 
 const PAGE = 1000; // الحد الأقصى للصفوف في الطلب الواحد لدى Supabase
@@ -96,6 +96,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
     async joinHousehold(code, name) { check(await sb.rpc('join_household', { p_code: code, p_name: name ?? null })); },
     async leaveHousehold() { check(await sb.rpc('leave_household')); },
+    async setMyPin(pin) { check(await sb.rpc('set_my_pin', { p_pin: pin })); },
+    async hasMyPin() { const { data, error } = await sb.rpc('my_pin_set'); return error ? true : !!data; }, // مخطط قديم: لا نزعج المستخدم
+    async membersForReentry(code) { return (check(await sb.rpc('members_for_reentry', { p_code: code })) ?? []) as ReentryMember[]; },
+    async reenter(code, memberId, pin) { return !!check(await sb.rpc('reenter', { p_code: code, p_member: memberId, p_pin: pin })); },
     async deleteHousehold() {
       await removeReceipts();
       check(await sb.rpc('delete_household'));

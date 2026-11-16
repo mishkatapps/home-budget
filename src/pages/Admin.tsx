@@ -8,7 +8,7 @@ import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, typ
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 import { AVATARS, budgetOf, nameOf, useStore, type Store } from '../store';
 import Backup from './Backup';
-import { signOutWithWarning } from './Onboarding';
+import { PinForm, signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
   { id: 'admin', label: 'مدير (كل الصلاحيات)' },
@@ -342,7 +342,7 @@ function Subscription() {
 }
 
 export default function Admin() {
-  const { me, isAdmin, reload, budgets, run } = useStore();
+  const { me, isAdmin, reload, budgets, run, pinSet } = useStore();
   const myBudget = budgetOf(budgets, currentYm(), me.id);
   // عند فتح الإدارة نجلب أحدث البيانات حتى تظهر طلبات الانضمام الجديدة دون إعادة تحميل الصفحة
   useEffect(() => { reload().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -351,7 +351,13 @@ export default function Admin() {
       <Section title="حسابي">
         <p><b>{me.full_name}</b> · {roleLabel(me.role)}</p>
         {me.anonymous
-          ? <p className="muted small">منضم بالرمز بلا حساب جوجل: دخولك محفوظ في هذا المتصفح فقط. إن مسحت بياناته أو غيّرت الجهاز فاطلب الانضمام من جديد.</p>
+          ? (
+            <>
+              <p className="muted small">منضم بالرمز بلا حساب جوجل: دخولك محفوظ في هذا المتصفح. إن خرجت أو غيّرت الهاتف تعود من «الانضمام برمز دعوة» ← «سبق أن انضممت» برمز الدعوة ورمزك الشخصي.</p>
+              <h3>{pinSet ? 'تغيير رمزي الشخصي' : 'رمزي الشخصي (لم يُضبط بعد)'}</h3>
+              <PinForm onDone={() => reload().catch(() => {})} submitLabel={pinSet ? 'تغيير الرمز الشخصي' : 'حفظ الرمز الشخصي'} />
+            </>
+          )
           : <p className="muted small" dir="ltr">{me.email}</p>}
         {myBudget > 0 && <p className="small">مصروفك هذا الشهر: <b className="num grant-total">{money(myBudget)}</b></p>}
 

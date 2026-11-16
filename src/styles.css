@@ -282,3 +282,5 @@ h3 { font-size: .98rem; margin: 14px 0 4px; }
 .pre { white-space: pre-line; }
 /* نصوص الشرح تحت العناوين: عريضة لتُقرأ بوضوح */
 p.muted.small { font-weight: 700; }
+
+.segmented.block { width: 100%; }

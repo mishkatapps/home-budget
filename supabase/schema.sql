@@ -301,6 +301,96 @@ begin
   perform set_config('app.skip_audit', 'off', true);
 end $$;
 
+-- ───────────── عودة العضو المنضم بالرمز (بلا حساب جوجل) ─────────────
+-- دخول العضو بلا حساب محفوظ في متصفحه فقط؛ إن ضاع (متصفح آخر، مسح بيانات، هاتف جديد) يعود برمز شخصي يختاره:
+-- رمز دعوة الأسرة + اسمه + رمزه الشخصي، فتنتقل عضويته وكل ما سجّله إلى دخوله الجديد.
+create table if not exists public.member_pins (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  salt text not null,
+  hash text not null,
+  fails int not null default 0,
+  locked_until timestamptz
+);
+alter table public.member_pins enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
+
+create or replace function public.pin_hash(p_salt text, p_pin text) returns text
+language sql immutable as $$ select encode(sha256(convert_to(p_salt || ':' || p_pin, 'UTF8')), 'hex') $$;
+
+create or replace function public.set_my_pin(p_pin text) returns void
+language plpgsql security definer set search_path = public as $$
+declare s text := replace(gen_random_uuid()::text, '-', '');
+begin
+  if auth.uid() is null then raise exception 'يجب تسجيل الدخول أولاً'; end if;
+  if p_pin !~ '^\d{4,8}$' then raise exception 'الرمز الشخصي من 4 إلى 8 أرقام'; end if;
+  insert into public.member_pins (profile_id, salt, hash) values (auth.uid(), s, public.pin_hash(s, p_pin))
+    on conflict (profile_id) do update set salt = excluded.salt, hash = excluded.hash, fails = 0, locked_until = null;
+end $$;
+
+create or replace function public.my_pin_set() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.member_pins where profile_id = auth.uid())
+$$;
+
+-- من يعرف رمز دعوة الأسرة يرى أسماء أعضائها المنضمين بلا حساب ولهم رمز شخصي، ليختار اسمه
+create or replace function public.members_for_reentry(p_code text) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'full_name', p.full_name, 'avatar', p.avatar) order by p.full_name), '[]'::jsonb)
+  from public.households h
+  join public.profiles p on p.household_id = h.id
+  join public.member_pins m on m.profile_id = p.id
+  join auth.users u on u.id = p.id
+  where auth.uid() is not null and h.invite_code = upper(trim(p_code)) and coalesce(u.is_anonymous, false)
+$$;
+
+-- ينقل عضوية العضو القديمة (دوره، أسرته، ما سجّله، مصروفه) إلى الدخول الحالي بعد التحقق من رمزه الشخصي
+-- تعيد false إن كان الرمز الشخصي خاطئاً (بلا استثناء، حتى يُحفظ عدّاد المحاولات)
+create or replace function public.reenter(p_code text, p_member uuid, p_pin text) returns boolean
+language plpgsql security definer set search_path = public as $$
+declare
+  me uuid := auth.uid();
+  h uuid;
+  pin public.member_pins%rowtype;
+begin
+  if me is null then raise exception 'يجب تسجيل الدخول أولاً'; end if;
+  if me = p_member then return true; end if;
+  if public.my_household() is not null then raise exception 'أنت منضم إلى أسرة بالفعل'; end if;
+  select id into h from public.households where invite_code = upper(trim(p_code));
+  if h is null then raise exception 'رمز الدعوة غير صحيح'; end if;
+  if not exists (select 1 from public.profiles p join auth.users u on u.id = p.id
+                 where p.id = p_member and p.household_id = h and coalesce(u.is_anonymous, false)) then
+    raise exception 'هذا العضو لا يدخل بالرمز الشخصي';
+  end if;
+  select * into pin from public.member_pins where profile_id = p_member;
+  if not found then raise exception 'هذا العضو لم يضبط رمزاً شخصياً. اطلب الانضمام من جديد'; end if;
+  if pin.locked_until is not null and pin.locked_until > now() then
+    raise exception 'محاولات خاطئة كثيرة. حاول بعد % دقيقة', ceil(extract(epoch from pin.locked_until - now()) / 60);
+  end if;
+  if public.pin_hash(pin.salt, p_pin) <> pin.hash then
+    update public.member_pins
+      set fails = case when fails >= 4 then 0 else fails + 1 end,
+          locked_until = case when fails >= 4 then now() + interval '15 minutes' else null end
+      where profile_id = p_member;
+    return false;
+  end if;
+
+  perform set_config('app.skip_audit', 'on', true);
+  insert into public.profiles (id, role) values (me, 'pending') on conflict (id) do nothing;
+  update public.profiles n
+    set household_id = o.household_id, role = o.role, full_name = o.full_name, avatar = o.avatar, created_at = o.created_at
+    from public.profiles o where o.id = p_member and n.id = me;
+  update public.expenses set created_by = me where created_by = p_member;
+  update public.incomes set created_by = me where created_by = p_member;
+  update public.allowance_grants set member_id = me where member_id = p_member;
+  update public.allowance_grants set granted_by = me where granted_by = p_member;
+  update public.households set created_by = me where created_by = p_member;
+  update public.audit_log set user_id = me where user_id = p_member;
+  update public.receipt_scans set user_id = me where user_id = p_member;
+  update public.member_pins set profile_id = me, fails = 0, locked_until = null where profile_id = p_member;
+  delete from auth.users where id = p_member; -- يحذف الدخول القديم وملفه؛ الجهاز القديم يخرج تلقائياً
+  perform set_config('app.skip_audit', 'off', true);
+  return true;
+end $$;
+
 -- رقم المصدر عند الاستيراد (أكسيس، نسخة احتياطية، Excel) يحتاج مجالاً أوسع من int
 alter table public.incomes alter column legacy_id type bigint;
 alter table public.expenses alter column legacy_id type bigint;
@@ -401,7 +491,7 @@ grant select, delete on public.allowance_grants to authenticated;
 
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants', 'license_codes', 'app_info')
+    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants', 'license_codes', 'app_info', 'member_pins')
   loop execute format('drop policy %I on public.%I', p.policyname, p.tablename); end loop;
 end $$;
 
@@ -595,12 +685,12 @@ end $$;
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text)
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text)
   to authenticated;
 
 -- ───────────── تخزين صور الفواتير (خاص، مجلد لكل أسرة) ─────────────

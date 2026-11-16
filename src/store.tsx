@@ -20,6 +20,8 @@ export interface Store {
   /** يسجّل ويعدّل: دوره يسمح والأسرة في الشهر المجاني أو مفعّلة */
   canWrite: boolean;
   license: License;
+  /** للمنضم بلا حساب: هل ضبط رمزه الشخصي للعودة؟ */
+  pinSet: boolean;
   reload(): Promise<void>;
   /** ينفذ عملية كتابة ثم يعيد التحميل، ويعرض الخطأ إن فشلت */
   run(fn: () => Promise<void>): Promise<boolean>;

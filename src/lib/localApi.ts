@@ -114,6 +114,10 @@ export const localApi: Api = {
   async signInAnonymously() {},
   async joinHousehold() {},
   async leaveHousehold() {},
+  async setMyPin() {},
+  async hasMyPin() { return true; },
+  async membersForReentry() { return []; },
+  async reenter() { return true; },
   async deleteHousehold() { throw new Error('الحذف غير متاح في الوضع التجريبي.'); },
   async deleteAccount() { throw new Error('الحذف غير متاح في الوضع التجريبي.'); },
 

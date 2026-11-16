@@ -31,6 +31,7 @@ interface Data {
   summary: SummaryRow[];
   budgets: BudgetRow[];
   myGrants: Grant[];
+  pinSet: boolean;
 }
 
 export default function App() {
@@ -55,11 +56,11 @@ export default function App() {
   const approved = !!me && !!me.household_id && me.role !== 'pending';
 
   const reload = useCallback(async () => {
-    const [household, profiles, categories, beneficiaries, summary, budgets, myGrants] = await Promise.all([
+    const [household, profiles, categories, beneficiaries, summary, budgets, myGrants, pinSet] = await Promise.all([
       api.getHousehold(), api.listProfiles(), api.listCategories(), api.listBeneficiaries(), api.getSummary(),
-      api.getBudgets(), api.listMyGrants(),
+      api.getBudgets(), api.listMyGrants(), api.hasMyPin(),
     ]);
-    setData({ household, profiles, categories, beneficiaries, summary, budgets, myGrants });
+    setData({ household, profiles, categories, beneficiaries, summary, budgets, myGrants, pinSet });
     if (unlocked.current) setIncomes(await api.listIncomes());
     setVersion((v) => v + 1);
   }, []);
@@ -119,7 +120,7 @@ export default function App() {
             <>
               <div className="divider muted small">أو</div>
               <button className="btn block" onClick={() => api.signInAnonymously().catch((e) => setError(e.message))}>الانضمام إلى أسرة برمز دعوة</button>
-              <p className="muted small">لأفراد الأسرة: بلا حساب، يكفي الرمز من مدير الأسرة.</p>
+              <p className="muted small">لأفراد الأسرة بلا حساب: عضو جديد برمز الدعوة، أو عودة عضو سابق برمزه الشخصي.</p>
             </>
           )}
           {appleEnabled && (
@@ -152,6 +153,12 @@ export default function App() {
         </header>
         {api.mode === 'local' && (
           <div className="banner">وضع تجريبي: البيانات على هذا الجهاز فقط، والتعديلات تزول عند إعادة تحميل الصفحة.</div>
+        )}
+        {store.me.anonymous && !store.pinSet && (
+          <div className="banner danger" role="alert">
+            لم تضبط رمزك الشخصي بعد. بدونه لا تستطيع العودة إن خرجت من هذا المتصفح.{' '}
+            <button className="link" onClick={() => setTab('admin')}>اضبطه الآن</button>
+          </div>
         )}
         {store.license.expired && (
           <div className="banner danger" role="alert">

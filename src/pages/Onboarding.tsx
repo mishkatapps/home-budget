@@ -1,61 +1,184 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import type { Household, Profile } from '../lib/types';
+import type { Household, Profile, ReentryMember } from '../lib/types';
 
-/** من انضم بالرمز بلا حساب: هويته في هذا المتصفح فقط، فالخروج يعني طلب انضمام جديد */
+const PIN_RE = /^\d{4,8}$/;
+
+/** من انضم بالرمز بلا حساب: دخوله في هذا المتصفح فقط؛ يعود بعد الخروج برمزه الشخصي */
 export function signOutWithWarning(me: Profile) {
-  if (me.anonymous && !confirm('أنت منضم بالرمز بلا حساب جوجل. إن خرجت ستحتاج رمز الدعوة وموافقة مدير الأسرة من جديد. هل تخرج؟')) return;
+  if (me.anonymous && !confirm('أنت منضم بالرمز بلا حساب جوجل. بعد الخروج تعود من «سبق أن انضممت» برمز دعوة الأسرة ورمزك الشخصي. إن لم تكن ضبطت رمزاً شخصياً فستحتاج طلب انضمام جديد. هل تخرج؟')) return;
   api.signOut();
+}
+
+/** نطلب من المتصفح ألا يمسح بيانات التطبيق تلقائياً (يقلل ضياع دخول العضو) */
+function keepStorage() {
+  try { navigator.storage?.persist?.(); } catch { /* غير مدعوم */ }
+}
+
+/** يضبط العضو رمزه الشخصي (أو يغيّره) */
+export function PinForm({ onDone, submitLabel = 'حفظ الرمز الشخصي' }: { onDone?: () => void; submitLabel?: string }) {
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    if (!PIN_RE.test(pin)) return setMsg('⚠ الرمز الشخصي من 4 إلى 8 أرقام.');
+    if (pin !== pin2) return setMsg('⚠ الرمزان غير متطابقين.');
+    setBusy(true);
+    try { await api.setMyPin(pin); setPin(''); setPin2(''); setMsg('تم حفظ رمزك الشخصي. احفظه جيداً.'); onDone?.(); }
+    catch (err) { setMsg('⚠ ' + (err as Error).message); }
+    setBusy(false);
+  }
+  return (
+    <form className="form block" onSubmit={save}>
+      {msg && <p className={msg.startsWith('⚠') ? 'error' : ''} role="status">{msg}</p>}
+      <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required placeholder="رمز شخصي (4 إلى 8 أرقام)" value={pin} onChange={(e) => setPin(e.target.value)} />
+      <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required placeholder="أعد كتابة الرمز" value={pin2} onChange={(e) => setPin2(e.target.value)} />
+      <button className="btn primary" disabled={busy}>{submitLabel}</button>
+    </form>
+  );
+}
+
+/** عضو سبق انضمامه بلا حساب وضاع دخوله: رمز دعوة الأسرة ← يختار اسمه ← رمزه الشخصي */
+function Reentry({ onDone }: { onDone: () => void }) {
+  const [code, setCode] = useState('');
+  const [members, setMembers] = useState<ReentryMember[] | null>(null);
+  const [memberId, setMemberId] = useState('');
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function find(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const list = await api.membersForReentry(code);
+      if (!list.length) setError('لا يوجد أعضاء لهم رمز شخصي في أسرة بهذا الرمز. تأكد من رمز الدعوة، أو اطلب انضماماً جديداً.');
+      else { setMembers(list); setMemberId(list.length === 1 ? list[0].id : ''); }
+    } catch (err) { setError((err as Error).message); }
+    setBusy(false);
+  }
+
+  async function enter(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      if (await api.reenter(code, memberId, pin)) { keepStorage(); onDone(); return; }
+      setPin('');
+      setError('الرمز الشخصي غير صحيح. بعد 5 محاولات خاطئة يُوقف الدخول 15 دقيقة.');
+    } catch (err) { setError((err as Error).message); }
+    setBusy(false);
+  }
+
+  if (!members) {
+    return (
+      <form className="form block" onSubmit={find}>
+        {error && <p className="error" role="alert">{error}</p>}
+        <p className="muted small">اكتب رمز دعوة أسرتك (اطلبه من مدير الأسرة إن لم يكن عندك).</p>
+        <input placeholder="رمز الدعوة" required dir="ltr" autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
+        <button className="btn primary" disabled={busy}>متابعة</button>
+      </form>
+    );
+  }
+  return (
+    <form className="form block" onSubmit={enter}>
+      {error && <p className="error" role="alert">{error}</p>}
+      <label>من أنت؟
+        <select required value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+          <option value="">— اختر اسمك —</option>
+          {members.map((m) => <option key={m.id} value={m.id}>{m.avatar ? m.avatar + ' ' : ''}{m.full_name}</option>)}
+        </select>
+      </label>
+      <label>رمزك الشخصي
+        <input type="password" inputMode="numeric" autoComplete="off" maxLength={8} required value={pin} onChange={(e) => setPin(e.target.value)} />
+      </label>
+      <button className="btn primary" disabled={busy || !memberId}>دخول</button>
+      <button type="button" className="link small" onClick={() => { setMembers(null); setPin(''); setError(null); }}>تغيير رمز الدعوة</button>
+    </form>
+  );
 }
 
 /**
  * حساب بلا أسرة:
  * - من دخل بجوجل ينشئ أسرته (فيصير مديرها) أو ينضم برمز دعوة.
- * - من دخل بلا حساب ينضم برمز دعوة فقط ويكتب اسمه.
+ * - من دخل بلا حساب: عضو جديد ينضم برمز الدعوة ويختار رمزاً شخصياً، أو عضو سابق يعود برمزه الشخصي.
  */
 export function Onboarding({ me, onDone }: { me: Profile; onDone: () => void }) {
   const [name, setName] = useState('');
   const [memberName, setMemberName] = useState('');
   const [code, setCode] = useState('');
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [returning, setReturning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function go(fn: () => Promise<void>) {
     setBusy(true);
     setError(null);
-    try { await fn(); onDone(); } catch (e) { setError((e as Error).message); setBusy(false); }
+    try { await fn(); keepStorage(); onDone(); } catch (e) { setError((e as Error).message); setBusy(false); }
+  }
+
+  function joinAnonymous(e: React.FormEvent) {
+    e.preventDefault();
+    if (!PIN_RE.test(pin)) return setError('الرمز الشخصي من 4 إلى 8 أرقام.');
+    if (pin !== pin2) return setError('الرمزان الشخصيان غير متطابقين.');
+    go(async () => { await api.joinHousehold(code, memberName); await api.setMyPin(pin); });
+  }
+
+  if (me.anonymous) {
+    return (
+      <div className="center">
+        <div className="login card">
+          <img src="./icon.svg" alt="" width={56} height={56} />
+          <h1>أفراد الأسرة</h1>
+          <div className="segmented block" role="tablist">
+            <button type="button" className={!returning ? 'on' : ''} onClick={() => { setReturning(false); setError(null); }}>عضو جديد</button>
+            <button type="button" className={returning ? 'on' : ''} onClick={() => { setReturning(true); setError(null); }}>سبق أن انضممت</button>
+          </div>
+          {returning ? <Reentry onDone={onDone} /> : (
+            <form className="form block" onSubmit={joinAnonymous}>
+              {error && <p className="error" role="alert">{error}</p>}
+              <p className="muted small">أدخل رمز الدعوة من مدير أسرتك، واختر رمزاً شخصياً تعود به إن خرجت أو غيّرت هاتفك.</p>
+              <input placeholder="اسمك كما يعرفك أهلك" required maxLength={60} autoComplete="name" value={memberName} onChange={(e) => setMemberName(e.target.value)} />
+              <input placeholder="رمز الدعوة" required dir="ltr" autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
+              <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required placeholder="رمز شخصي من اختيارك (4 إلى 8 أرقام)" value={pin} onChange={(e) => setPin(e.target.value)} />
+              <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required placeholder="أعد كتابة الرمز الشخصي" value={pin2} onChange={(e) => setPin2(e.target.value)} />
+              <button className="btn primary" disabled={busy}>طلب الانضمام</button>
+            </form>
+          )}
+          <button className="link small" onClick={() => api.signOut()}>رجوع</button>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="center">
       <div className="login card">
         <img src="./icon.svg" alt="" width={56} height={56} />
-        <h1>{me.anonymous ? 'الانضمام إلى أسرة' : `مرحباً ${me.full_name ?? ''}`}</h1>
+        <h1>مرحباً {me.full_name ?? ''}</h1>
         {error && <p className="error" role="alert">{error}</p>}
 
-        {!me.anonymous && (
-          <>
-            <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.createHousehold(name)); }}>
-              <h2>أسرة جديدة</h2>
-              <p className="muted small">تبدأ ميزانية أسرتك وتصبح مديرها، ثم تدعو أفرادها برمز دعوة.</p>
-              <input placeholder="اسم الأسرة، مثال: أسرة أحمد" required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-              <button className="btn primary" disabled={busy}>إنشاء الأسرة</button>
-            </form>
-            <div className="divider muted small">أو</div>
-          </>
-        )}
-
-        <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.joinHousehold(code, me.anonymous ? memberName : undefined)); }}>
-          {!me.anonymous && <h2>الانضمام إلى أسرة</h2>}
+        <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.createHousehold(name)); }}>
+          <h2>أسرة جديدة</h2>
+          <p className="muted small">تبدأ ميزانية أسرتك وتصبح مديرها، ثم تدعو أفرادها برمز دعوة.</p>
+          <input placeholder="اسم الأسرة، مثال: أسرة أحمد" required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="btn primary" disabled={busy}>إنشاء الأسرة</button>
+        </form>
+        <div className="divider muted small">أو</div>
+        <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.joinHousehold(code)); }}>
+          <h2>الانضمام إلى أسرة</h2>
           <p className="muted small">أدخل رمز الدعوة الذي أرسله لك مدير أسرتك. ستدخل بعد موافقته.</p>
-          {me.anonymous && (
-            <input placeholder="اسمك كما يعرفك أهلك" required maxLength={60} autoComplete="name" value={memberName} onChange={(e) => setMemberName(e.target.value)} />
-          )}
           <input placeholder="رمز الدعوة" required dir="ltr" autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
-          <button className={me.anonymous ? 'btn primary' : 'btn'} disabled={busy}>طلب الانضمام</button>
+          <button className="btn" disabled={busy}>طلب الانضمام</button>
         </form>
 
-        <button className="link small" onClick={() => api.signOut()}>{me.anonymous ? 'رجوع' : `تسجيل الخروج (${me.email})`}</button>
+        <button className="link small" onClick={() => api.signOut()}>تسجيل الخروج ({me.email})</button>
       </div>
     </div>
   );
@@ -64,7 +187,11 @@ export function Onboarding({ me, onDone }: { me: Profile; onDone: () => void }) 
 /** انضم برمز دعوة وينتظر موافقة المدير (أو أوقفه المدير) */
 export function Pending({ me, onRefresh }: { me: Profile; onRefresh: () => void }) {
   const [household, setHousehold] = useState<Household | null>(null);
-  useEffect(() => { api.getHousehold().then(setHousehold).catch(() => {}); }, []);
+  const [pinSet, setPinSet] = useState(true);
+  useEffect(() => {
+    api.getHousehold().then(setHousehold).catch(() => {});
+    if (me.anonymous) api.hasMyPin().then(setPinSet).catch(() => {});
+  }, [me.anonymous]);
 
   async function cancel() {
     if (!confirm('سحب طلب الانضمام؟')) return;
@@ -79,7 +206,13 @@ export function Pending({ me, onRefresh }: { me: Profile; onRefresh: () => void 
         <p>
           مرحباً {me.full_name}. وصل طلبك{household ? ` إلى «${household.name}»` : ''}، وسيظهر لمدير الأسرة في شاشة الإدارة ليمنحك الصلاحية.
         </p>
-        {me.anonymous && <p className="muted small">ابقَ على هذا المتصفح نفسه: طلبك مرتبط به، ولا تمسح بياناته.</p>}
+        {me.anonymous && pinSet && <p className="muted small">إن أغلقت التطبيق أو فتحته من متصفح آخر، ارجع من «الانضمام برمز دعوة» ثم «سبق أن انضممت» برمزك الشخصي.</p>}
+        {me.anonymous && !pinSet && (
+          <>
+            <p className="error">اضبط رمزاً شخصياً الآن حتى تستطيع العودة إن خرجت من هذا المتصفح.</p>
+            <PinForm onDone={() => setPinSet(true)} />
+          </>
+        )}
         <button className="btn primary block" onClick={onRefresh}>تحديث</button>
         {me.household_id !== 'legacy' && <button className="btn block" onClick={cancel}>سحب الطلب</button>}
         {!me.anonymous && <button className="link small" onClick={() => api.signOut()}>تسجيل الخروج ({me.email})</button>}

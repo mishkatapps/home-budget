@@ -28,6 +28,12 @@ export interface Household {
   licensed_at?: string | null;
 }
 
+export interface ReentryMember {
+  id: string;
+  full_name: string | null;
+  avatar: string | null;
+}
+
 /** ما يعرضه التطبيق في شاشة التفعيل (يضبطه صاحب التطبيق في القاعدة) */
 export interface AppInfo {
   price: string | null;
@@ -149,6 +155,14 @@ export interface Api {
   /** دخول بلا حساب لفرد الأسرة الذي سينضم برمز الدعوة */
   signInAnonymously(): Promise<void>;
   joinHousehold(code: string, name?: string): Promise<void>;
+
+  /** الرمز الشخصي للعضو المنضم بلا حساب: به يعود إن ضاع دخوله من المتصفح */
+  setMyPin(pin: string): Promise<void>;
+  hasMyPin(): Promise<boolean>;
+  /** أعضاء الأسرة الذين يمكنهم العودة بالرمز الشخصي، لمن يعرف رمز الدعوة */
+  membersForReentry(code: string): Promise<ReentryMember[]>;
+  /** ينقل عضوية العضو إلى الدخول الحالي؛ false = الرمز الشخصي خاطئ */
+  reenter(code: string, memberId: string, pin: string): Promise<boolean>;
   /** لمن لم يُعتمد بعد: يسحب طلب الانضمام */
   leaveHousehold(): Promise<void>;
   /** للمدير: يحذف الأسرة وكل بياناتها وصور فواتيرها نهائياً */

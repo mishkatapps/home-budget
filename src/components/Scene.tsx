@@ -136,6 +136,28 @@ const House = () => (
 
 const SCENES: Record<SceneName, () => React.JSX.Element> = { home: Living, expenses: Kitchen, incomes: Savings, stats: Study, admin: House };
 
+/**
+ * صور فوتوغرافية اختيارية لخلفية كل قسم. ضع الملفات في public/bg/ ثم سجّلها هنا، مثال:
+ *   home: { day: './bg/home-day.jpg', night: './bg/home-night.jpg' }
+ * القسم الذي لا صورة له يستخدم الرسم. إن لم تُحدَّد صورة ليلية تُعتَّم النهارية في الوضع الليلي.
+ */
+export const PHOTOS: Partial<Record<SceneName, { day: string; night?: string }>> = {};
+
+/** خلفية الصفحة كلها خلف البطاقات نصف الشفافة */
+export function Backdrop({ name }: { name: SceneName }) {
+  const photo = PHOTOS[name];
+  return (
+    <div className="backdrop" aria-hidden="true">
+      {photo ? (
+        <>
+          <img className={`day ${photo.night ? 'has-night' : ''}`} src={photo.day} alt="" />
+          {photo.night && <img className="night" src={photo.night} alt="" />}
+        </>
+      ) : <Scene name={name} />}
+    </div>
+  );
+}
+
 export default function Scene({ name }: { name: SceneName }) {
   const Art = SCENES[name];
   return (

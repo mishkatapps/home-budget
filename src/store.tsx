@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { AllowanceTotal, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
+import type { BudgetRow, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
 
 export interface Store {
   me: Profile;
@@ -10,9 +10,9 @@ export interface Store {
   /** دخل المدير الحالي؛ null ما دام قفل الدخل مغلقاً (لا يُجلب من الخادم قبل الفتح) */
   incomes: Income[] | null;
   summary: SummaryRow[];
-  /** ميزانية كل عضو = مجموع ما منحه له المديرون؛ تظهر لكل الأسرة */
-  allowances: AllowanceTotal[];
-  /** ما منحه المدير الحالي نفسه */
+  /** ميزانية كل عضو في كل شهر (دفعات كل المديرين + المرحَّل)؛ تظهر لكل الأسرة */
+  budgets: BudgetRow[];
+  /** دفعات المدير الحالي نفسه */
   myGrants: Grant[];
   /** يتغير بعد كل إعادة تحميل — تستخدمه الصفحات لإعادة جلب قوائمها */
   version: number;
@@ -39,4 +39,8 @@ export const nameOf = (list: { id: number | string; name?: string; full_name?: s
   return x ? (x.name ?? x.full_name ?? '') : '';
 };
 
-export const allowanceOf = (list: AllowanceTotal[], memberId: string) => list.find((a) => a.member_id === memberId)?.total ?? 0;
+export const budgetOf = (list: BudgetRow[], ym: string, memberId: string) => list.find((b) => b.ym === ym && b.member_id === memberId)?.total ?? 0;
+
+/** رموز يقترحها التطبيق ليختار منها كل فرد رمزه */
+export const AVATARS = ['👨', '👩', '👦', '👧', '👴', '👵', '🧔', '👶', '🦁', '🐯', '🦊', '🐼', '🐨', '🦉', '🐬', '🦋', '🌟', '🌙', '☀️', '🌹', '🌻', '⚽', '🚗', '📚'];
+export const avatarOf = (list: Profile[], id: string | null) => list.find((p) => p.id === id)?.avatar ?? null;

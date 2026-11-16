@@ -81,7 +81,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
           <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required value={pin2} onChange={(e) => setPin2(e.target.value)} />
         </label>
         {bioOk && (
-          <label className="check"><input type="checkbox" checked={useBio} onChange={(e) => setUseBio(e.target.checked)} /> فتح ببصمة الإصبع أو الوجه أيضاً</label>
+          <label className="check"><input type="checkbox" checked={useBio} onChange={(e) => setUseBio(e.target.checked)} /> فتح بالبصمة أيضاً (أو بالوجه إن دعمه جهازك)</label>
         )}
         <button className="btn primary" disabled={busy}>حفظ وفتح بيانات الدخل</button>
       </form>
@@ -93,7 +93,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
       {error && <p className="error" role="alert">{error}</p>}
       {hasBiometric(me.id) && (
         <>
-          <button type="button" className="btn primary" disabled={busy} onClick={byBio}>فتح ببصمة الإصبع أو الوجه</button>
+          <button type="button" className="btn primary" disabled={busy} onClick={byBio}>فتح بالبصمة</button>
           <div className="divider muted small">أو بالرمز</div>
         </>
       )}

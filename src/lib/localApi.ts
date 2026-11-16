@@ -1,7 +1,7 @@
 // الوضع التجريبي: كل البيانات في ذاكرة المتصفح على هذا الجهاز فقط.
 // يقرأ public/local/seed.json (ناتج scripts/export-access.ps1) إن وُجد.
 import type {
-  Api, AuditEntry, Beneficiary, Category, Expense, Income, LegacyExport, Profile, SummaryRow,
+  Api, AuditEntry, Beneficiary, BudgetRow, Category, Expense, Grant, Income, LegacyExport, Profile, SummaryRow,
 } from './types';
 
 const ADMIN: Profile = {
@@ -20,8 +20,14 @@ interface Db {
 }
 
 let dbPromise: Promise<Db> | null = null;
-/** المصروف الممنوح في الوضع التجريبي (مدير واحد) */
-const grants = new Map<string, number>([['local-admin', 4000], ['local-member', 1500]]);
+/** دفعات المصروف في الوضع التجريبي (مدير واحد): دفعات هذا الشهر، ومتبقٍ من الشهر السابق ينتظر قرار الترحيل */
+const nowYm = new Date().toISOString().slice(0, 7);
+const prevYm = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })();
+const grants: Grant[] = [
+  { id: 1, member_id: 'local-admin', ym: nowYm, amount: 3000, kind: 'grant', note: 'دفعة أول الشهر', created_at: new Date().toISOString() },
+  { id: 2, member_id: 'local-member', ym: nowYm, amount: 1000, kind: 'grant', note: 'دفعة أول الشهر', created_at: new Date().toISOString() },
+  { id: 3, member_id: 'local-member', ym: prevYm, amount: 1200, kind: 'grant', note: null, created_at: new Date().toISOString() },
+];
 
 function emptyDb(): Db {
   return {
@@ -120,13 +126,38 @@ export const localApi: Api = {
     log(db, 'update', 'profiles', id, old, db.profiles[i]);
   },
 
-  async getAllowances() { return [...grants.entries()].map(([member_id, total]) => ({ member_id, total })); },
-  async listMyGrants() { return [...grants.entries()].map(([member_id, amount]) => ({ member_id, amount })); },
-  async setAllowance(memberId, amount) {
-    const db = await getDb();
-    if (amount && amount > 0) grants.set(memberId, amount); else grants.delete(memberId);
-    log(db, 'update', 'allowances', memberId, null, { member_id: memberId, amount });
+  async getBudgets() {
+    const map = new Map<string, BudgetRow>();
+    for (const g of grants) {
+      const key = g.ym + '|' + g.member_id;
+      const r = map.get(key) ?? { ym: g.ym, member_id: g.member_id, total: 0, carried: 0, decided: false };
+      r.total += g.amount;
+      if (g.kind === 'carryover') { r.carried += g.amount; r.decided = true; }
+      map.set(key, r);
+    }
+    return [...map.values()];
   },
+  async listMyGrants() { return [...grants]; },
+  async addGrant(memberId, ym, amount, note) {
+    const db = await getDb();
+    const g: Grant = { id: db.seq++, member_id: memberId, ym, amount, kind: 'grant', note: note || null, created_at: new Date().toISOString() };
+    grants.push(g);
+    log(db, 'insert', 'allowance_grants', g.id, null, g);
+  },
+  async deleteGrant(id) {
+    const i = grants.findIndex((g) => g.id === id);
+    if (i >= 0) grants.splice(i, 1);
+  },
+  async carryOver(memberId, ym, approve) {
+    const db = await getDb();
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    const prev = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const budget = grants.filter((g) => g.member_id === memberId && g.ym === prev).reduce((s, g) => s + g.amount, 0);
+    const spent = db.expenses.filter((e) => e.created_by === memberId && e.paid_on.startsWith(prev)).reduce((s, e) => s + e.amount, 0);
+    grants.push({ id: db.seq++, member_id: memberId, ym, amount: approve ? Math.max(budget - spent, 0) : 0, kind: 'carryover', note: 'مُرحَّل من ' + prev, created_at: new Date().toISOString() });
+  },
+  async setMyAvatar(avatar) { const db = await getDb(); db.profiles[0] = { ...db.profiles[0], avatar: avatar || null }; },
 
   async listCategories() { return [...(await getDb()).categories]; },
   async saveCategory(c) { const db = await getDb(); upsert(db, 'categories', db.categories, c, () => ({ name: c.name, active: true, monthly_budget: null })); },

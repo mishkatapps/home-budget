@@ -4,7 +4,7 @@ import { MonthNav } from '../components/ui';
 import { api } from '../lib/api';
 import { dateTimeLabel, dayLabel, money, moneyExact, monthEnd, monthStart } from '../lib/format';
 import type { Expense } from '../lib/types';
-import { nameOf, useStore } from '../store';
+import { avatarOf, nameOf, useStore } from '../store';
 
 export default function Expenses({ ym, setYm }: { ym: string; setYm: (ym: string) => void }) {
   const { categories, beneficiaries, profiles, me, isAdmin, canWrite, version } = useStore();
@@ -55,7 +55,7 @@ export default function Expenses({ ym, setYm }: { ym: string; setYm: (ym: string
         </select>
         <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="من سجّل">
           <option value="">كل الأعضاء</option>
-          {members.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+          {members.map((p) => <option key={p.id} value={p.id}>{p.avatar ? p.avatar + ' ' : ''}{p.full_name}</option>)}
         </select>
         <input type="search" placeholder="بحث في الملاحظات" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -76,6 +76,7 @@ export default function Expenses({ ym, setYm }: { ym: string; setYm: (ym: string
           <ul className="rows">
             {items.map((e) => (
               <li key={e.id} className={canEdit(e) ? 'clickable' : ''} onClick={() => canEdit(e) && setEditing(e)} title={`سُجّل في ${dateTimeLabel(e.created_at)}`}>
+                <span className="avatar" aria-hidden="true">{avatarOf(profiles, e.created_by) ?? '·'}</span>
                 <div className="grow">
                   <div>{nameOf(categories, e.category_id)}{e.receipt_path ? ' 📎' : ''}</div>
                   <div className="muted small">

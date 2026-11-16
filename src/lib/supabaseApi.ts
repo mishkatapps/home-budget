@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AllowanceTotal, Grant } from './types';
+import type { BudgetRow, Grant } from './types';
 import type { Api, AuditEntry, Beneficiary, Category, Expense, Household, Income, Profile, ReceiptResult, SummaryRow } from './types';
 
 const PAGE = 1000; // الحد الأقصى للصفوف في الطلب الواحد لدى Supabase
@@ -109,15 +109,20 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async listProfiles() { return check(await sb.from('profiles').select('*').order('created_at')) as Profile[]; },
     async updateProfile(id, patch) { check(await sb.from('profiles').update(patch).eq('id', id)); },
 
-    async getAllowances() {
-      const { data, error } = await sb.rpc('get_allowances');
-      return error ? [] : ((data ?? []) as AllowanceTotal[]); // خطأ = مخطط قديم بلا جدول المنح
+    async getBudgets() {
+      const { data, error } = await sb.rpc('get_budgets');
+      return error ? [] : ((data ?? []) as BudgetRow[]); // خطأ = مخطط قديم بلا جدول الدفعات
     },
     async listMyGrants() {
-      const { data, error } = await sb.from('allowances').select('member_id,amount');
+      const { data, error } = await sb.from('allowance_grants').select('id,member_id,ym,amount,kind,note,created_at').order('id');
       return error ? [] : ((data ?? []) as Grant[]);
     },
-    async setAllowance(memberId, amount) { check(await sb.rpc('set_allowance', { p_member: memberId, p_amount: amount })); },
+    async addGrant(memberId, ym, amount, note) {
+      check(await sb.rpc('add_grant', { p_member: memberId, p_ym: ym, p_amount: amount, p_note: note ?? null }));
+    },
+    async deleteGrant(id) { check(await sb.from('allowance_grants').delete().eq('id', id)); },
+    async carryOver(memberId, ym, approve) { check(await sb.rpc('carry_over', { p_member: memberId, p_ym: ym, p_approve: approve })); },
+    async setMyAvatar(avatar) { check(await sb.rpc('set_my_avatar', { p_avatar: avatar })); },
 
     async listCategories() { return check(await sb.from('categories').select('*').order('id')) as Category[]; },
     async saveCategory(c) { await upsertRow('categories', c); },

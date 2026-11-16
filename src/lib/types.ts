@@ -5,6 +5,8 @@ export interface Profile {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  /** رمز يختاره العضو ليظهر بجانب ما يسجّله */
+  avatar?: string | null;
   role: Role;
   /** الأسرة التي ينتمي إليها؛ null لحساب جديد لم ينشئ أسرة ولم ينضم لواحدة */
   household_id: string | null;
@@ -22,15 +24,25 @@ export interface Household {
   invite_code: string;
 }
 
-/** ميزانية العضو الشهرية = مجموع ما منحه له كل المديرين */
-export interface AllowanceTotal {
+/** ميزانية عضو في شهر = مجموع دفعات كل المديرين + ما رُحِّل من الشهر السابق */
+export interface BudgetRow {
+  ym: string;
   member_id: string;
   total: number;
+  /** الجزء المرحَّل من الشهر السابق ضمن الإجمالي */
+  carried: number;
+  /** هل قرر مدير ترحيل متبقي الشهر السابق (بالموافقة أو الرفض)؟ */
+  decided: boolean;
 }
-/** ما منحه المدير الحالي نفسه لعضو (خاص به) */
+/** دفعة منحها المدير الحالي نفسه (خاصة به) */
 export interface Grant {
+  id: number;
   member_id: string;
+  ym: string;
   amount: number;
+  kind: 'grant' | 'carryover';
+  note: string | null;
+  created_at: string;
 }
 
 export interface Category {
@@ -137,11 +149,15 @@ export interface Api {
   listProfiles(): Promise<Profile[]>;
   updateProfile(id: string, patch: Partial<Pick<Profile, 'role'>>): Promise<void>;
 
-  /** ميزانيات الأعضاء (الإجماليات) — تظهر لكل أفراد الأسرة */
-  getAllowances(): Promise<AllowanceTotal[]>;
-  /** ما منحه المدير الحالي — خاص به */
+  /** ميزانيات الأعضاء لكل شهر (الإجماليات) — تظهر لكل أفراد الأسرة */
+  getBudgets(): Promise<BudgetRow[]>;
+  /** دفعات المدير الحالي — خاصة به */
   listMyGrants(): Promise<Grant[]>;
-  setAllowance(memberId: string, amount: number | null): Promise<void>;
+  addGrant(memberId: string, ym: string, amount: number, note?: string): Promise<void>;
+  deleteGrant(id: number): Promise<void>;
+  /** قرار المدير في متبقي الشهر السابق للعضو: يُرحَّل إلى ym أو لا */
+  carryOver(memberId: string, ym: string, approve: boolean): Promise<void>;
+  setMyAvatar(avatar: string): Promise<void>;
 
   listCategories(): Promise<Category[]>;
   saveCategory(c: Partial<Category> & { name: string }): Promise<void>;

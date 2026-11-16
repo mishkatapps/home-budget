@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, appleEnabled } from './lib/api';
 import { currentYm } from './lib/format';
-import type { AllowanceTotal, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
+import type { BudgetRow, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
 import { StoreContext, type Store } from './store';
-import Scene, { type SceneName } from './components/Scene';
+import Scene, { Backdrop, type SceneName } from './components/Scene';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
 import Incomes from './pages/Incomes';
@@ -28,7 +28,7 @@ interface Data {
   categories: Category[];
   beneficiaries: Beneficiary[];
   summary: SummaryRow[];
-  allowances: AllowanceTotal[];
+  budgets: BudgetRow[];
   myGrants: Grant[];
 }
 
@@ -54,11 +54,11 @@ export default function App() {
   const approved = !!me && !!me.household_id && me.role !== 'pending';
 
   const reload = useCallback(async () => {
-    const [household, profiles, categories, beneficiaries, summary, allowances, myGrants] = await Promise.all([
+    const [household, profiles, categories, beneficiaries, summary, budgets, myGrants] = await Promise.all([
       api.getHousehold(), api.listProfiles(), api.listCategories(), api.listBeneficiaries(), api.getSummary(),
-      api.getAllowances(), api.listMyGrants(),
+      api.getBudgets(), api.listMyGrants(),
     ]);
-    setData({ household, profiles, categories, beneficiaries, summary, allowances, myGrants });
+    setData({ household, profiles, categories, beneficiaries, summary, budgets, myGrants });
     if (unlocked.current) setIncomes(await api.listIncomes());
     setVersion((v) => v + 1);
   }, []);
@@ -137,6 +137,7 @@ export default function App() {
 
   return (
     <StoreContext.Provider value={store}>
+      <Backdrop name={current} />
       <div className="app">
         <header className="hero">
           <Scene name={current} />

@@ -266,7 +266,9 @@ function DangerZone() {
 }
 
 export default function Admin() {
-  const { me, isAdmin } = useStore();
+  const { me, isAdmin, reload } = useStore();
+  // عند فتح الإدارة نجلب أحدث البيانات حتى تظهر طلبات الانضمام الجديدة دون إعادة تحميل الصفحة
+  useEffect(() => { reload().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       <Section title="حسابي">

@@ -143,9 +143,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     },
 
     async analyzeReceipt(image, categories) {
-      const { data, error } = await sb.functions.invoke('analyze-receipt', {
-        body: { image: await blobToBase64(image), mime: image.type || 'image/jpeg', categories },
-      });
+      const body = { image: await blobToBase64(image), mime: image.type || 'image/jpeg', categories };
+      let { data, error } = await sb.functions.invoke('analyze-receipt', { body });
+      // الطلب لم يصل أصلاً (انقطاع لحظي في الشبكة): نعيد المحاولة مرة واحدة
+      if (error?.name === 'FunctionsFetchError') {
+        await new Promise((r) => setTimeout(r, 1500));
+        ({ data, error } = await sb.functions.invoke('analyze-receipt', { body }));
+        if (error?.name === 'FunctionsFetchError') {
+          throw new Error('تعذر الوصول إلى خادم التحليل. تحقق من اتصال الإنترنت ثم اضغط «تحليل الفاتورة» مرة أخرى.');
+        }
+      }
       if (error) {
         // رد الدالة برمز خطأ: نص السبب في جسم الرد لا في error.message
         let reason = error.message;

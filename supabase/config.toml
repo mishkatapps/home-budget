@@ -1,0 +1,6 @@
+# إعداد أداة Supabase CLI (اسم محلي للمشروع فقط؛ المشروع السحابي يُحدَّد عند النشر)
+project_id = "home-budget"
+
+[functions.analyze-receipt]
+# الدالة تتحقق من المستخدم وصلاحيته بنفسها عبر my_role() و claim_receipt_scan()
+verify_jwt = true

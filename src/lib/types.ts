@@ -11,6 +11,8 @@ export interface Profile {
   /** الميزانية الشهرية المخصصة للعضو من إجمالي الدخل */
   monthly_budget: number | null;
   created_at: string;
+  /** للمستخدم الحالي فقط: انضم بالرمز بلا حساب جوجل، فهويته محفوظة في هذا المتصفح وحده */
+  anonymous?: boolean;
 }
 
 export interface Household {
@@ -111,7 +113,9 @@ export interface Api {
 
   getHousehold(): Promise<Household | null>;
   createHousehold(name: string): Promise<void>;
-  joinHousehold(code: string): Promise<void>;
+  /** دخول بلا حساب لفرد الأسرة الذي سينضم برمز الدعوة */
+  signInAnonymously(): Promise<void>;
+  joinHousehold(code: string, name?: string): Promise<void>;
   /** لمن لم يُعتمد بعد: يسحب طلب الانضمام */
   leaveHousehold(): Promise<void>;
   /** للمدير: يحذف الأسرة وكل بياناتها وصور فواتيرها نهائياً */

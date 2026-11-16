@@ -165,6 +165,10 @@ declare h uuid;
 begin
   if auth.uid() is null then raise exception 'يجب تسجيل الدخول أولاً'; end if;
   if public.my_household() is not null then raise exception 'أنت منضم إلى أسرة بالفعل'; end if;
+  -- مدير الأسرة يحتاج حساباً دائماً يسترجعه من أي جهاز؛ المنضم بالرمز بلا حساب لا ينشئ أسرة
+  if coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) then
+    raise exception 'إنشاء أسرة يتطلب الدخول بحساب جوجل';
+  end if;
   perform set_config('app.skip_audit', 'on', true);
   insert into public.households (name, created_by)
     values (coalesce(nullif(trim(p_name), ''), 'أسرتي'), auth.uid()) returning id into h;
@@ -179,15 +183,25 @@ begin
   return h;
 end $$;
 
-create or replace function public.join_household(p_code text) returns void
+-- أفراد الأسرة ينضمون بالرمز: بحساب جوجل، أو بلا حساب (دخول مجهول) مع كتابة الاسم
+drop function if exists public.join_household(text);
+create or replace function public.join_household(p_code text, p_name text default null) returns void
 language plpgsql security definer set search_path = public as $$
-declare h uuid;
+declare
+  h uuid;
+  nm text := nullif(trim(coalesce(p_name, '')), '');
 begin
   if auth.uid() is null then raise exception 'يجب تسجيل الدخول أولاً'; end if;
   if public.my_household() is not null then raise exception 'أنت منضم إلى أسرة بالفعل'; end if;
   select id into h from public.households where invite_code = upper(trim(p_code));
   if h is null then raise exception 'رمز الدعوة غير صحيح'; end if;
-  update public.profiles set household_id = h, role = 'pending' where id = auth.uid();
+  insert into public.profiles (id, role) values (auth.uid(), 'pending') on conflict (id) do nothing;
+  if nm is null and (select coalesce(full_name, '') from public.profiles where id = auth.uid()) = '' then
+    raise exception 'اكتب اسمك ليعرفك مدير الأسرة';
+  end if;
+  update public.profiles
+    set household_id = h, role = 'pending', full_name = coalesce(left(nm, 60), full_name)
+    where id = auth.uid();
 end $$;
 
 -- من لم يُعتمد بعد (أو أوقفه المدير) يستطيع الخروج لينشئ أسرته أو ينضم لأخرى
@@ -392,12 +406,12 @@ end $$;
 
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan(),
+  public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
   public.delete_household(), public.delete_account()
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text), public.leave_household(), public.claim_receipt_scan(),
+  public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
   public.delete_household(), public.delete_account()
   to authenticated;
 

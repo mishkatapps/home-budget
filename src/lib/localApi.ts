@@ -103,6 +103,7 @@ export const localApi: Api = {
 
   async getHousehold() { return { id: 'local', name: 'أسرة تجريبية', invite_code: 'LOCAL12345' }; },
   async createHousehold() {},
+  async signInAnonymously() {},
   async joinHousehold() {},
   async leaveHousehold() {},
   async deleteHousehold() { throw new Error('الحذف غير متاح في الوضع التجريبي.'); },

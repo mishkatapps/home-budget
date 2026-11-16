@@ -4,6 +4,7 @@ import { api, importEnabled } from '../lib/api';
 import { dateTimeLabel, money, moneyExact } from '../lib/format';
 import type { AuditEntry, LegacyExport, Role } from '../lib/types';
 import { nameOf, useStore, type Store } from '../store';
+import { signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
   { id: 'admin', label: 'مدير (كل الصلاحيات)' },
@@ -48,7 +49,7 @@ function Members() {
           <li key={p.id} className="stack">
             <div>
               <b>{p.full_name}</b> {p.id === me.id && <span className="chip">أنت</span>} {p.role === 'pending' && <span className="chip warn">بانتظار الموافقة</span>}
-              <div className="muted small" dir="ltr">{p.email}</div>
+              {p.email ? <div className="muted small" dir="ltr">{p.email}</div> : <div className="muted small">انضم بالرمز (بلا حساب جوجل)</div>}
             </div>
             <div className="inline">
               <select value={p.role} disabled={p.id === me.id} aria-label="الصلاحية" onChange={(e) => run(() => api.updateProfile(p.id, { role: e.target.value as Role }))}>
@@ -270,10 +271,12 @@ export default function Admin() {
     <>
       <Section title="حسابي">
         <p><b>{me.full_name}</b> · {roleLabel(me.role)}</p>
-        <p className="muted small" dir="ltr">{me.email}</p>
+        {me.anonymous
+          ? <p className="muted small">منضم بالرمز بلا حساب جوجل: دخولك محفوظ في هذا المتصفح فقط. إن مسحت بياناته أو غيّرت الجهاز فاطلب الانضمام من جديد.</p>
+          : <p className="muted small" dir="ltr">{me.email}</p>}
         {me.monthly_budget ? <p className="small">ميزانيتك الشهرية: <b className="num">{money(me.monthly_budget)}</b></p> : null}
         <div className="inline">
-          {api.mode === 'cloud' && <button className="btn" onClick={() => api.signOut()}>تسجيل الخروج</button>}
+          {api.mode === 'cloud' && <button className="btn" onClick={() => signOutWithWarning(me)}>تسجيل الخروج</button>}
           <a className="small" href="./privacy.html">سياسة الخصوصية</a>
         </div>
       </Section>

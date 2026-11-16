@@ -60,9 +60,10 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const profile = check(await sb.from('profiles').select('*').eq('id', user.id).maybeSingle()) as Profile | null;
       // قاعدة ما زالت على المخطط القديم (أسرة واحدة، بلا عمود household_id): تعمل كما كانت
       if (profile && !('household_id' in profile)) (profile as Profile).household_id = 'legacy';
-      return profile ?? {
+      const anonymous = !!user.is_anonymous;
+      return profile ? { ...profile, anonymous } : {
         id: user.id, email: user.email ?? null, full_name: user.email ?? null, avatar_url: null,
-        role: 'pending', household_id: null, monthly_budget: null, created_at: new Date().toISOString(),
+        role: 'pending', household_id: null, monthly_budget: null, created_at: new Date().toISOString(), anonymous,
       };
     },
     onAuthChange(cb) {
@@ -84,7 +85,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       return error ? null : (data as Household | null); // الخطأ هنا يعني مخططاً قديماً بلا جدول أسر
     },
     async createHousehold(name) { check(await sb.rpc('create_household', { p_name: name })); },
-    async joinHousehold(code) { check(await sb.rpc('join_household', { p_code: code })); },
+    async signInAnonymously() {
+      const { error } = await sb.auth.signInAnonymously();
+      if (error) throw new Error(/disabled/i.test(error.message) ? 'الانضمام بالرمز بلا حساب غير مفعّل على الخادم بعد.' : error.message);
+    },
+    async joinHousehold(code, name) { check(await sb.rpc('join_household', { p_code: code, p_name: name ?? null })); },
     async leaveHousehold() { check(await sb.rpc('leave_household')); },
     async deleteHousehold() {
       await removeReceipts();

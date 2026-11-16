@@ -84,6 +84,14 @@ export default function App() {
           <p className="muted">سجّل الدخل والمصروفات وتابع ميزانية الأسرة</p>
           {error && <p className="error">{error}</p>}
           <button className="btn primary block" onClick={() => api.signIn('google').catch((e) => setError(e.message))}>الدخول بحساب جوجل</button>
+          <p className="muted small">لمدير الأسرة، ولمن يريد حساباً يفتحه من أي جهاز.</p>
+          {api.mode === 'cloud' && (
+            <>
+              <div className="divider muted small">أو</div>
+              <button className="btn block" onClick={() => api.signInAnonymously().catch((e) => setError(e.message))}>الانضمام إلى أسرة برمز دعوة</button>
+              <p className="muted small">لأفراد الأسرة: بلا حساب، يكفي الرمز من مدير الأسرة.</p>
+            </>
+          )}
           {appleEnabled && (
             <button className="btn block" onClick={() => api.signIn('apple').catch((e) => setError(e.message))}>الدخول بحساب آبل</button>
           )}

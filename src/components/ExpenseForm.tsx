@@ -51,7 +51,7 @@ export default function ExpenseForm({ initial, onClose }: { initial: Expense | n
   async function analyze() {
     if (!receipt) return;
     setBusy(true);
-    setStatus('جارٍ تحليل الفاتورة…');
+    setStatus('جارٍ تحليل الفاتورة… قد يستغرق حتى نصف دقيقة.');
     try {
       const r = await api.analyzeReceipt(receipt, cats.map((c) => c.name));
       setAnalysis(r);

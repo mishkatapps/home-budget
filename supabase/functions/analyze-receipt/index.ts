@@ -13,6 +13,7 @@ async function rpc(req: Request, name: string): Promise<unknown> {
       Authorization: req.headers.get('Authorization') ?? '',
     },
     body: '{}',
+    signal: AbortSignal.timeout(10_000),
   });
   return res.ok ? await res.json() : null;
 }
@@ -55,23 +56,39 @@ Deno.serve(async (req) => {
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
     // أسماء النماذج تتغير: نجرب المضبوط ثم بدائل، وننتقل للتالي إن كان النموذج غير موجود
-    const models = [...new Set([model, 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'])];
+    const models = [...new Set([model, 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.0-flash'])];
     let res: Response | null = null;
     let detail = '';
     for (const m of models) {
-      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body,
-      });
+      const started = Date.now();
+      try {
+        // مهلة لكل نموذج: نموذج معلّق لا يجوز أن يستنزف وقت الدالة كله فيوقفها الخادم بلا رسالة مفهومة
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body,
+          signal: AbortSignal.timeout(25_000),
+        });
+      } catch (e) {
+        console.error('gemini no response', m, Date.now() - started, String(e));
+        res = null;
+        detail = `النموذج ${m} لم يرد خلال ${Math.round((Date.now() - started) / 1000)} ثانية`;
+        continue;
+      }
       if (res.ok) break;
       const errText = await res.text();
       console.error('gemini error', m, res.status, errText);
       try { detail = JSON.parse(errText)?.error?.message ?? ''; } catch { detail = ''; }
-      if (res.status !== 404) break;
+      // نموذج غير موجود (404) أو مزدحم/متوقف مؤقتاً عند جوجل (429/500/503): نجرب النموذج التالي
+      if (![404, 429, 500, 503].includes(res.status)) break;
     }
     if (!res || !res.ok) {
-      return json({ error: `خدمة التحليل رفضت الطلب (${res?.status}): ${detail.slice(0, 200)}` }, 502);
+      const busy = !res || [429, 500, 503].includes(res.status);
+      return json({
+        error: busy
+          ? `خدمة التحليل عند جوجل مزدحمة الآن. حاول بعد دقيقة أو أدخل البيانات يدوياً. (${res ? res.status : 'بلا رد'}: ${detail.slice(0, 120)})`
+          : `خدمة التحليل رفضت الطلب (${res!.status}): ${detail.slice(0, 200)}`,
+      }, 502);
     }
     const out = await res.json();
     const text: string = out?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? '';

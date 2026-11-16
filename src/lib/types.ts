@@ -22,6 +22,16 @@ export interface Household {
   name: string;
   /** رمز يشاركه المدير مع أفراد أسرته لينضموا */
   invite_code: string;
+  /** نهاية الشهر المجاني */
+  trial_ends_at?: string | null;
+  /** تاريخ التفعيل المدفوع؛ null = لم تُفعَّل */
+  licensed_at?: string | null;
+}
+
+/** ما يعرضه التطبيق في شاشة التفعيل (يضبطه صاحب التطبيق في القاعدة) */
+export interface AppInfo {
+  price: string | null;
+  payment_info: string | null;
 }
 
 /** ميزانية عضو في شهر = مجموع دفعات كل المديرين + ما رُحِّل من الشهر السابق */
@@ -158,6 +168,10 @@ export interface Api {
   /** قرار المدير في متبقي الشهر السابق للعضو: يُرحَّل إلى ym أو لا */
   carryOver(memberId: string, ym: string, approve: boolean): Promise<void>;
   setMyAvatar(avatar: string): Promise<void>;
+
+  getAppInfo(): Promise<AppInfo | null>;
+  /** المدير يفعّل أسرته برمز تفعيل بعد الدفع */
+  redeemLicense(code: string): Promise<void>;
 
   listCategories(): Promise<Category[]>;
   saveCategory(c: Partial<Category> & { name: string }): Promise<void>;

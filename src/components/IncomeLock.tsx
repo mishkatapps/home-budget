@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { biometricAvailable, clearLock, enrollBiometric, hasBiometric, hasLock, setPin, verifyBiometric, verifyPin } from '../lib/lock';
 import { useStore } from '../store';
@@ -20,6 +20,14 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
 
   useEffect(() => { biometricAvailable().then(setBioOk); }, []);
 
+  // من فعّل البصمة: يطلبها الجهاز فور ظهور القفل بلا ضغط زر. إن ألغاها يبقى الزر والرمز.
+  const asked = useRef(false);
+  useEffect(() => {
+    if (asked.current || !hasLock(me.id) || !hasBiometric(me.id)) return;
+    asked.current = true;
+    verifyBiometric(me.id).then((ok) => { if (ok) open(); });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function open() { await unlockIncome(); onDone?.(); }
 
   async function setup(e: React.FormEvent) {
@@ -32,7 +40,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
       await setPin(me.id, pin);
       if (bioOk && useBio) {
         try { await enrollBiometric(me.id, me.full_name ?? 'مدير الأسرة'); }
-        catch { setError('لم تُفعَّل البصمة؛ سيُستخدم الرمز فقط.'); }
+        catch { setError('لم تُفعَّل بصمة الإصبع؛ سيُستخدم الرمز فقط.'); }
       }
       setConfigured(true);
       await open();
@@ -59,7 +67,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
     setBusy(true);
     setError(null);
     if (await verifyBiometric(me.id)) await open();
-    else setError('لم يتم التحقق بالبصمة. استخدم الرمز.');
+    else setError('لم يتم التحقق ببصمة الإصبع. استخدم الرمز.');
     setBusy(false);
   }
 
@@ -81,7 +89,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
           <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={8} required value={pin2} onChange={(e) => setPin2(e.target.value)} />
         </label>
         {bioOk && (
-          <label className="check"><input type="checkbox" checked={useBio} onChange={(e) => setUseBio(e.target.checked)} /> فتح بالبصمة أيضاً (أو بالوجه إن دعمه جهازك)</label>
+          <label className="check"><input type="checkbox" checked={useBio} onChange={(e) => setUseBio(e.target.checked)} /> فتح ببصمة الإصبع تلقائياً</label>
         )}
         <button className="btn primary" disabled={busy}>حفظ وفتح بيانات الدخل</button>
       </form>
@@ -93,7 +101,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
       {error && <p className="error" role="alert">{error}</p>}
       {hasBiometric(me.id) && (
         <>
-          <button type="button" className="btn primary" disabled={busy} onClick={byBio}>فتح بالبصمة</button>
+          <button type="button" className="btn primary" disabled={busy} onClick={byBio}>إعادة طلب بصمة الإصبع</button>
           <div className="divider muted small">أو بالرمز</div>
         </>
       )}

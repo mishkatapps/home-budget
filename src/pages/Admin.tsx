@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Section } from '../components/ui';
 import { api, importEnabled } from '../lib/api';
-import { currentYm, dateTimeLabel, money, moneyExact } from '../lib/format';
-import type { AuditEntry, LegacyExport, Role } from '../lib/types';
+import { currentYm, dateTimeLabel, daysLabel, money, moneyExact } from '../lib/format';
+import type { AppInfo, AuditEntry, LegacyExport, Role } from '../lib/types';
+import { MishkatCredit } from '../components/Brand';
+import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, type PrefKey } from '../lib/prefs';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 import { AVATARS, budgetOf, nameOf, useStore, type Store } from '../store';
 import { signOutWithWarning } from './Onboarding';
@@ -266,9 +268,80 @@ function DangerZone() {
   );
 }
 
+/** مجموعة أزرار لاختيار واحد من بدائل */
+function Choice<T extends string>({ label, options, value, onPick }: { label: string; options: readonly (readonly [T, string])[]; value: T; onPick: (v: T) => void }) {
+  return (
+    <>
+      <h3>{label}</h3>
+      <div className="segmented" role="radiogroup" aria-label={label}>
+        {options.map(([id, text]) => (
+          <button key={id} type="button" role="radio" aria-checked={value === id} className={value === id ? 'on' : ''} onClick={() => onPick(id)}>{text}</button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** شكل التطبيق على هذا الجهاز: كل مستخدم يختار ما يناسبه */
+function Appearance() {
+  const [theme, setTheme] = useState<ThemePref>(getThemePref);
+  const [prefs, setPrefs] = useState(() => ({ fs: getPref('fs'), font: getPref('font'), bg: getPref('bg'), palette: getPref('palette') }));
+  const pick = (key: PrefKey) => (value: string) => { setPref(key, value); setPrefs((p) => ({ ...p, [key]: value })); };
+  return (
+    <Section title="المظهر">
+      <p className="muted small">هذه الاختيارات تخص هذا الجهاز فقط، ولا تغيّر ما يراه باقي أفراد الأسرة.</p>
+      <Choice label="الوضع" options={[['auto', 'تلقائي'], ['light', '☀️ نهاري'], ['dark', '🌙 ليلي']] as const} value={theme} onPick={(v) => { setThemePref(v); setTheme(v); }} />
+      <Choice label="حجم الخط" options={FONT_SIZES} value={prefs.fs} onPick={pick('fs')} />
+      <Choice label="نوع الخط" options={FONT_FAMILIES} value={prefs.font} onPick={pick('font')} />
+      <Choice label="الألوان" options={PALETTES} value={prefs.palette} onPick={pick('palette')} />
+      <Choice label="الخلفية" options={BACKGROUNDS} value={prefs.bg} onPick={pick('bg')} />
+    </Section>
+  );
+}
+
+/** الشهر المجاني والتفعيل برمز بعد الدفع مرة واحدة */
+function Subscription() {
+  const { license, household, isAdmin, run } = useStore();
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (!license.licensed) api.getAppInfo().then(setInfo).catch(() => {}); }, [license.licensed]);
+  if (!household?.trial_ends_at) return null; // مخطط قديم بلا بيانات اشتراك
+
+  async function activate(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    if (await run(() => api.redeemLicense(code))) setCode('');
+    setBusy(false);
+  }
+
+  if (license.licensed) {
+    return (
+      <Section title="الاشتراك">
+        <p>✅ أسرتك مفعّلة{household.licensed_at ? ` منذ ${household.licensed_at.slice(0, 10)}` : ''}. التفعيل دائم ولا يحتاج تجديداً.</p>
+      </Section>
+    );
+  }
+  return (
+    <Section title="الاشتراك">
+      {license.expired
+        ? <p className="error">انتهى الشهر المجاني يوم {household.trial_ends_at.slice(0, 10)}. بياناتكم محفوظة وتظهر للعرض، والتسجيل والتعديل متوقفان حتى التفعيل.</p>
+        : <p>أنتم في الشهر المجاني: باقي <b className="grant-total">{daysLabel(license.daysLeft)}</b> (حتى {household.trial_ends_at.slice(0, 10)}).</p>}
+      <p className="small">بعد الشهر المجاني يُفعَّل التطبيق للأسرة كلها بدفعة واحدة، بلا اشتراك شهري.{info?.price ? <> السعر: <b>{info.price}</b>.</> : null}</p>
+      {info?.payment_info && <p className="small pre">{info.payment_info}</p>}
+      <p className="small">للحصول على رمز التفعيل راسل مشكاة: <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a></p>
+      {isAdmin ? (
+        <form className="inline wrap" onSubmit={activate}>
+          <input dir="ltr" placeholder="رمز التفعيل MSK-…" required autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
+          <button className="btn primary" disabled={busy}>تفعيل</button>
+        </form>
+      ) : <p className="muted small">التفعيل يقوم به مدير الأسرة.</p>}
+    </Section>
+  );
+}
+
 export default function Admin() {
   const { me, isAdmin, reload, budgets, run } = useStore();
-  const [theme, setTheme] = useState<ThemePref>(getThemePref);
   const myBudget = budgetOf(budgets, currentYm(), me.id);
   // عند فتح الإدارة نجلب أحدث البيانات حتى تظهر طلبات الانضمام الجديدة دون إعادة تحميل الصفحة
   useEffect(() => { reload().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -289,18 +362,14 @@ export default function Admin() {
           ))}
         </div>
 
-        <h3>المظهر</h3>
-        <div className="segmented" role="radiogroup" aria-label="المظهر">
-          {([['auto', 'تلقائي'], ['light', '☀️ نهاري'], ['dark', '🌙 ليلي']] as [ThemePref, string][]).map(([id, text]) => (
-            <button key={id} type="button" role="radio" aria-checked={theme === id} className={theme === id ? 'on' : ''} onClick={() => { setThemePref(id); setTheme(id); }}>{text}</button>
-          ))}
-        </div>
 
         <div className="inline">
           {api.mode === 'cloud' && <button className="btn" onClick={() => signOutWithWarning(me)}>تسجيل الخروج</button>}
           <a className="small" href="./privacy.html">سياسة الخصوصية</a>
         </div>
       </Section>
+      <Appearance />
+      <Subscription />
       {isAdmin && (
         <>
           <Invite />
@@ -312,6 +381,7 @@ export default function Admin() {
         </>
       )}
       <DangerZone />
+      <p className="center-line"><MishkatCredit /></p>
     </>
   );
 }

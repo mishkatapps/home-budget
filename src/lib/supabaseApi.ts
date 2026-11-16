@@ -1,11 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { BudgetRow, Grant } from './types';
+import type { AppInfo, BudgetRow, Grant } from './types';
 import type { Api, AuditEntry, Beneficiary, Category, Expense, Household, Income, Profile, ReceiptResult, SummaryRow } from './types';
 
 const PAGE = 1000; // الحد الأقصى للصفوف في الطلب الواحد لدى Supabase
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
-  if (res.error) throw new Error(res.error.message);
+  if (res.error) {
+    // رفض سياسات الأمان: صلاحية ناقصة أو فترة مجانية منتهية
+    if (/row-level security|permission denied/i.test(res.error.message)) throw new Error('غير مسموح بهذه العملية: صلاحيتك لا تكفي، أو انتهت الفترة المجانية ولم تُفعَّل الأسرة بعد.');
+    throw new Error(res.error.message);
+  }
   return res.data;
 }
 
@@ -82,7 +86,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     // RLS يحصر النتيجة في أسرة المستخدم
     async getHousehold() {
-      const { data, error } = await sb.from('households').select('id,name,invite_code').maybeSingle();
+      const { data, error } = await sb.from('households').select('id,name,invite_code,trial_ends_at,licensed_at').maybeSingle();
       return error ? null : (data as Household | null); // الخطأ هنا يعني مخططاً قديماً بلا جدول أسر
     },
     async createHousehold(name) { check(await sb.rpc('create_household', { p_name: name })); },
@@ -123,6 +127,11 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async deleteGrant(id) { check(await sb.from('allowance_grants').delete().eq('id', id)); },
     async carryOver(memberId, ym, approve) { check(await sb.rpc('carry_over', { p_member: memberId, p_ym: ym, p_approve: approve })); },
     async setMyAvatar(avatar) { check(await sb.rpc('set_my_avatar', { p_avatar: avatar })); },
+    async getAppInfo() {
+      const { data, error } = await sb.from('app_info').select('price,payment_info').maybeSingle();
+      return error ? null : (data as AppInfo | null);
+    },
+    async redeemLicense(code) { check(await sb.rpc('redeem_license', { p_code: code })); },
 
     async listCategories() { return check(await sb.from('categories').select('*').order('id')) as Category[]; },
     async saveCategory(c) { await upsertRow('categories', c); },

@@ -139,6 +139,57 @@ create unique index if not exists beneficiaries_household_name on public.benefic
 create unique index if not exists incomes_household_legacy on public.incomes (household_id, legacy_id);
 create unique index if not exists expenses_household_legacy on public.expenses (household_id, legacy_id);
 
+-- ───────────── الفترة المجانية والتفعيل (دفعة واحدة لكل أسرة) ─────────────
+-- كل أسرة تبدأ بشهر مجاني. بعده تبقى البيانات للعرض والحذف، ويتوقف التسجيل والتعديل حتى يفعّلها مديرها برمز تفعيل.
+alter table public.households add column if not exists trial_ends_at timestamptz not null default (now() + interval '30 days');
+alter table public.households add column if not exists licensed_at timestamptz;
+
+-- رموز التفعيل: ينشئها صاحب التطبيق من SQL Editor بـ  select * from public.generate_license_codes(5);
+create table if not exists public.license_codes (
+  code text primary key,
+  note text,
+  created_at timestamptz not null default now(),
+  used_by uuid references public.households (id) on delete set null,
+  used_at timestamptz
+);
+
+-- ما يظهر في شاشة التفعيل: السعر وطريقة الدفع. يعدّله صاحب التطبيق من SQL Editor.
+create table if not exists public.app_info (
+  id boolean primary key default true check (id),
+  price text,
+  payment_info text
+);
+insert into public.app_info (id) values (true) on conflict (id) do nothing;
+
+create or replace function public.household_active() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select licensed_at is not null or now() < trial_ends_at from public.households where id = public.my_household()), false)
+$$;
+
+create or replace function public.redeem_license(p_code text) returns void
+language plpgsql security definer set search_path = public as $$
+declare h uuid := public.my_household();
+begin
+  if h is null or public.my_role() is distinct from 'admin' then raise exception 'التفعيل لمدير الأسرة فقط'; end if;
+  if (select licensed_at from public.households where id = h) is not null then raise exception 'أسرتك مفعّلة بالفعل'; end if;
+  update public.license_codes set used_by = h, used_at = now() where code = upper(trim(p_code)) and used_by is null;
+  if not found then raise exception 'رمز التفعيل غير صحيح أو سبق استخدامه'; end if;
+  update public.households set licensed_at = now() where id = h;
+end $$;
+
+-- لصاحب التطبيق فقط (لا يستطيع أي مستخدم استدعاءها)
+create or replace function public.generate_license_codes(p_count int, p_note text default null) returns setof text
+language plpgsql security definer set search_path = public as $$
+declare c text;
+begin
+  for i in 1..greatest(1, least(p_count, 500)) loop
+    c := 'MSK-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 12));
+    insert into public.license_codes (code, note) values (c, p_note);
+    return next c;
+  end loop;
+end $$;
+revoke execute on function public.generate_license_codes(int, text) from public, anon, authenticated;
+
 -- ───────────── المصروف الممنوح على دفعات (ميزانية الأسرة الظاهرة للجميع) ─────────────
 -- كل مدير يمنح من دخله مصروفاً لأفراد الأسرة ولنفسه، دفعة واحدة أو عدة دفعات خلال الشهر.
 -- ميزانية العضو في الشهر = مجموع دفعات ذلك الشهر + ما رُحِّل إليه من الشهر السابق بموافقة مدير.
@@ -207,6 +258,7 @@ language plpgsql security definer set search_path = public as $$
 declare h uuid := public.my_household();
 begin
   if h is null or public.my_role() is distinct from 'admin' then raise exception 'منح المصروف لمدير الأسرة فقط'; end if;
+  if not public.household_active() then raise exception 'انتهت الفترة المجانية. فعّل الاشتراك من شاشة الإدارة'; end if;
   if coalesce(p_amount, 0) <= 0 then raise exception 'اكتب مبلغاً أكبر من صفر'; end if;
   if not exists (select 1 from public.profiles where id = p_member and household_id = h and role <> 'pending') then
     raise exception 'العضو ليس من أفراد أسرتك المعتمدين';
@@ -226,6 +278,7 @@ declare
   rest numeric;
 begin
   if h is null or public.my_role() is distinct from 'admin' then raise exception 'ترحيل المصروف لمدير الأسرة فقط'; end if;
+  if not public.household_active() then raise exception 'انتهت الفترة المجانية. فعّل الاشتراك من شاشة الإدارة'; end if;
   if not exists (select 1 from public.profiles where id = p_member and household_id = h) then raise exception 'العضو ليس من أسرتك'; end if;
   select coalesce(sum(amount), 0) into budget from public.allowance_grants where household_id = h and member_id = p_member and ym = prev;
   select coalesce(sum(amount), 0) into spent from public.expenses
@@ -329,19 +382,26 @@ alter table public.incomes enable row level security;
 alter table public.expenses enable row level security;
 alter table public.audit_log enable row level security;
 alter table public.receipt_scans enable row level security;
-alter table public.allowance_grants enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
+alter table public.allowance_grants enable row level security;
+alter table public.license_codes enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
+alter table public.app_info enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.categories, public.beneficiaries, public.incomes, public.expenses to authenticated;
-grant select, update on public.profiles, public.households to authenticated;
+grant select, update on public.profiles to authenticated;
+revoke update on public.households from authenticated;
+grant select on public.households, public.app_info to authenticated;
+grant update (name) on public.households to authenticated;
 grant select on public.audit_log to authenticated;
 grant select, delete on public.allowance_grants to authenticated;
 
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants')
+    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants', 'license_codes', 'app_info')
   loop execute format('drop policy %I on public.%I', p.policyname, p.tablename); end loop;
 end $$;
+
+create policy app_info_read on public.app_info for select to authenticated using (true);
 
 -- الأسرة: يراها أفرادها (والمنتظر يرى اسمها)، ويعدّلها مديرها
 create policy households_read on public.households for select to authenticated using (id = public.my_household());
@@ -360,17 +420,19 @@ create policy profiles_admin_update on public.profiles for update to authenticat
 create policy categories_read on public.categories for select to authenticated
   using (household_id = public.my_household() and public.my_role() in ('admin', 'member', 'viewer'));
 create policy categories_admin on public.categories for all to authenticated
-  using (household_id = public.my_household() and public.my_role() = 'admin')
-  with check (household_id = public.my_household() and public.my_role() = 'admin');
+  using (household_id = public.my_household() and public.my_role() = 'admin' and public.household_active())
+  with check (household_id = public.my_household() and public.my_role() = 'admin' and public.household_active());
 create policy beneficiaries_read on public.beneficiaries for select to authenticated
   using (household_id = public.my_household() and public.my_role() in ('admin', 'member', 'viewer'));
 create policy beneficiaries_admin on public.beneficiaries for all to authenticated
-  using (household_id = public.my_household() and public.my_role() = 'admin')
-  with check (household_id = public.my_household() and public.my_role() = 'admin');
+  using (household_id = public.my_household() and public.my_role() = 'admin' and public.household_active())
+  with check (household_id = public.my_household() and public.my_role() = 'admin' and public.household_active());
 -- الدخل خاص بالمدير الذي سجّله: لا يراه الأعضاء ولا المديرون الآخرون
-create policy incomes_owner on public.incomes for all to authenticated
-  using (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid())
-  with check (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid());
+create policy incomes_owner_read on public.incomes for select to authenticated
+  using (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid());
+create policy incomes_owner_write on public.incomes for all to authenticated
+  using (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid() and public.household_active())
+  with check (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid() and public.household_active());
 
 -- المنح: كل مدير يرى ويعدّل ما منحه هو فقط (الإجماليات للجميع عبر get_allowances)
 create policy grants_owner_read on public.allowance_grants for select to authenticated
@@ -382,12 +444,12 @@ create policy grants_owner_delete on public.allowance_grants for delete to authe
 create policy expenses_read on public.expenses for select to authenticated
   using (household_id = public.my_household() and public.my_role() in ('admin', 'member', 'viewer'));
 create policy expenses_insert on public.expenses for insert to authenticated
-  with check (household_id = public.my_household() and public.my_role() in ('admin', 'member') and created_by = auth.uid());
+  with check (household_id = public.my_household() and public.my_role() in ('admin', 'member') and created_by = auth.uid() and public.household_active());
 create policy expenses_update on public.expenses for update to authenticated
-  using (household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())))
-  with check (household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())));
+  using (public.household_active() and household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())))
+  with check (public.household_active() and household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())));
 create policy expenses_delete on public.expenses for delete to authenticated
-  using (household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())));
+  using (public.household_active() and household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())));
 
 -- سجل العمليات: يقرؤه مدير الأسرة فقط، ولا يكتب فيه أحد مباشرة (الكتابة عبر المشغِّلات)
 -- عمليات الدخل والمنح يراها في السجل صاحبها فقط، حفاظاً على خصوصية كل مدير
@@ -444,6 +506,7 @@ declare
   ne int := 0;
 begin
   if h is null or public.my_role() is distinct from 'admin' then raise exception 'الاستيراد لمدير الأسرة فقط'; end if;
+  if not public.household_active() then raise exception 'انتهت الفترة المجانية. فعّل الاشتراك من شاشة الإدارة'; end if;
   perform set_config('app.skip_audit', 'on', true);
 
   insert into public.categories (household_id, name)
@@ -525,12 +588,12 @@ end $$;
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text)
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text)
   to authenticated;
 
 -- ───────────── تخزين صور الفواتير (خاص، مجلد لكل أسرة) ─────────────

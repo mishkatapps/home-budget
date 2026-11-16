@@ -1,27 +1,63 @@
+/* ───── لوحات الألوان: يختارها المستخدم من «المظهر» (data-palette)، ولكلٍّ وضع نهاري وليلي (data-theme) ───── */
+/* مشكاة (الافتراضية): كحلي #0B1D3F، ذهبي #D9B15C، عاجي #F7F1E3 — من هوية الكيان */
 :root {
-  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #6f6d68;
-  --line: #e1e0d9; --axis: #c3c2b7; --track: #eceae4;
-  --accent: #1c5cab; --accent-ink: #fff;
+  --page: #f7f1e3; --surface: #fffdf7; --ink: #0b1d3f; --ink2: #3d4a66; --muted: #636b80;
+  --line: #e7dcc2; --axis: #cdbf9c; --track: #ece2c9;
+  --accent: #0b1d3f; --accent-ink: #f7f1e3; --gold: #d9b15c;
   --s1: #2a78d6; --s2: #eb6834;
-  --good: #006300; --bad: #b42626; --warn-fill: #fab219; --over-fill: #d03b3b; --warn-bg: #fdf0cf; --warn-ink: #6b4a00;
+  --good: #0f6b3a; --bad: #b42626; --warn-fill: #fab219; --over-fill: #d03b3b; --warn-bg: #fbecc4; --warn-ink: #6b4a00;
+  --font: "Segoe UI", "Noto Sans Arabic", system-ui, Tahoma, sans-serif;
   color-scheme: light;
 }
-/* الوضع الليلي: يضبطه src/lib/theme.ts على <html data-theme> (تلقائي يتبع الجهاز، أو باختيار المستخدم) */
 :root[data-theme="dark"] {
-  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #a09e97;
-  --line: #2c2c2a; --axis: #383835; --track: #2c2c2a;
-  --accent: #3987e5; --accent-ink: #fff;
-  --s1: #3987e5; --s2: #d95926;
-  --good: #0ca30c; --bad: #e66767; --warn-bg: #3b2f0c; --warn-ink: #fad27a;
+  --page: #071631; --surface: #0f2247; --ink: #f3ecd9; --ink2: #cfc8b4; --muted: #9ca6bd;
+  --line: #1d3463; --axis: #2c4578; --track: #1d3463;
+  --accent: #d9b15c; --accent-ink: #0b1d3f;
+  --s1: #5598e7; --s2: #e58a5a;
+  --good: #58c98a; --bad: #f08a8a; --warn-bg: #3a2f10; --warn-ink: #f5d58a;
   color-scheme: dark;
 }
+/* أزرق محايد */
+:root[data-palette="blue"] {
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #6f6d68;
+  --line: #e1e0d9; --axis: #c3c2b7; --track: #eceae4;
+  --accent: #1c5cab; --accent-ink: #fff; --gold: #1c5cab;
+  --good: #006300; --warn-bg: #fdf0cf;
+}
+:root[data-palette="blue"][data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #a09e97;
+  --line: #2c2c2a; --axis: #383835; --track: #2c2c2a;
+  --accent: #3987e5; --accent-ink: #fff; --gold: #3987e5;
+  --good: #0ca30c; --bad: #e66767; --warn-bg: #3b2f0c; --warn-ink: #fad27a;
+}
+/* أخضر زيتي #0F4C4A من هوية مشكاة */
+:root[data-palette="green"] {
+  --page: #f3f6f1; --surface: #fcfdfb; --ink: #0c2b2a; --ink2: #3f5554; --muted: #62716f;
+  --line: #d9e3d8; --axis: #b9c9b8; --track: #e3ebe1;
+  --accent: #0f4c4a; --accent-ink: #f7f1e3; --gold: #d9b15c;
+}
+:root[data-palette="green"][data-theme="dark"] {
+  --page: #06201f; --surface: #0c3231; --ink: #eef3ea; --ink2: #c4d0c6; --muted: #93a7a3;
+  --line: #17474a; --axis: #235b5c; --track: #17474a;
+  --accent: #d9b15c; --accent-ink: #0c2b2a;
+}
+
+/* ───── الخط: الحجم والنوع من «المظهر» ───── */
+html { font-size: 15px; }
+html[data-fs="s"] { font-size: 13.5px; }
+html[data-fs="l"] { font-size: 16.5px; }
+html[data-fs="xl"] { font-size: 18px; }
+html[data-font="naskh"] { --font: "Noto Naskh Arabic", "Traditional Arabic", "Geeza Pro", "Sakkal Majalla", "Times New Roman", serif; }
+html[data-font="tahoma"] { --font: Tahoma, "Segoe UI", Arial, sans-serif; }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
   background: var(--page); color: var(--ink);
-  font: 16px/1.55 "Segoe UI", Tahoma, "Noto Sans Arabic", system-ui, sans-serif;
+  font: 1rem/1.55 var(--font);
   -webkit-text-size-adjust: 100%;
 }
+button, input, select { font-family: inherit; }
 h1 { font-size: 1.5rem; margin: .4rem 0; }
 h2 { font-size: 1rem; margin: 0; }
 p { margin: .4rem 0; }
@@ -227,3 +263,20 @@ h3 { font-size: .98rem; margin: 14px 0 4px; }
 .segmented button { flex: 1; min-height: 40px; border: 0; background: var(--page); color: var(--ink); font: inherit; cursor: pointer; }
 .segmented button + button { border-inline-start: 1px solid var(--axis); }
 .segmented button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+/* ───── بدائل الخلفية ───── */
+:root[data-bg="soft"] .backdrop svg, :root[data-bg="soft"] .backdrop img { display: none; }
+:root[data-bg="soft"] .backdrop { background: radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--gold) 34%, transparent), transparent 60%), radial-gradient(120% 90% at 0% 100%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 62%); }
+:root[data-bg="soft"] .backdrop::after { display: none; }
+:root[data-bg="none"] .backdrop { display: none; }
+:root[data-bg="none"] .card { background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-bg="none"] .hero { height: auto; background: var(--accent); border-color: var(--accent); }
+:root[data-bg="none"] .hero .scene, :root[data-bg="none"] .hero::after { display: none; }
+:root[data-bg="none"] .hero-text { position: static; padding: 14px; color: var(--accent-ink); text-shadow: none; }
+
+/* ───── لمسات هوية مشكاة ───── */
+.tabs button.active { box-shadow: inset 0 3px 0 var(--gold); }
+.hero { border-bottom: 3px solid var(--gold); }
+.credit { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); text-decoration: none; }
+.credit b { color: var(--ink); }
+.center-line { display: flex; justify-content: center; margin: 18px 0 6px; }
+.pre { white-space: pre-line; }

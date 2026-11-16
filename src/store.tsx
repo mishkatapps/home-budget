@@ -17,13 +17,29 @@ export interface Store {
   /** يتغير بعد كل إعادة تحميل — تستخدمه الصفحات لإعادة جلب قوائمها */
   version: number;
   isAdmin: boolean;
+  /** يسجّل ويعدّل: دوره يسمح والأسرة في الشهر المجاني أو مفعّلة */
   canWrite: boolean;
+  license: License;
   reload(): Promise<void>;
   /** ينفذ عملية كتابة ثم يعيد التحميل، ويعرض الخطأ إن فشلت */
   run(fn: () => Promise<void>): Promise<boolean>;
   /** يجلب دخل المدير بعد نجاح التحقق (بصمة/وجه/PIN) */
   unlockIncome(): Promise<void>;
   lockIncome(): void;
+}
+
+export interface License {
+  licensed: boolean;
+  /** أيام باقية من الشهر المجاني (صفر إن انتهى) */
+  daysLeft: number;
+  /** انتهى الشهر المجاني ولم تُفعَّل: عرض فقط */
+  expired: boolean;
+}
+export function licenseOf(h: Household | null): License {
+  // أسرة بلا بيانات اشتراك (مخطط قديم أو وضع محلي): لا قيود
+  if (!h || h.licensed_at || !h.trial_ends_at) return { licensed: !!h?.licensed_at || !h?.trial_ends_at, daysLeft: 0, expired: false };
+  const ms = new Date(h.trial_ends_at).getTime() - Date.now();
+  return { licensed: false, daysLeft: Math.max(0, Math.ceil(ms / 864e5)), expired: ms <= 0 };
 }
 
 export const StoreContext = createContext<Store | null>(null);

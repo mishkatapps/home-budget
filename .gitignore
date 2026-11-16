@@ -16,3 +16,6 @@ scripts/
 prompt.docx
 .claude/
 guides/
+
+# ملفات هوية وصور خاصة بصاحب المشروع
+*.pdf

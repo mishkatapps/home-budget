@@ -109,7 +109,7 @@ export const localApi: Api = {
   async signIn() {},
   async signOut() {},
 
-  async getHousehold() { return { id: 'local', name: 'أسرة تجريبية', invite_code: 'LOCAL12345' }; },
+  async getHousehold() { return { id: 'local', name: 'أسرة تجريبية', invite_code: 'LOCAL12345', trial_ends_at: new Date(Date.now() + 12 * 864e5).toISOString(), licensed_at: null }; },
   async createHousehold() {},
   async signInAnonymously() {},
   async joinHousehold() {},
@@ -157,6 +157,8 @@ export const localApi: Api = {
     const spent = db.expenses.filter((e) => e.created_by === memberId && e.paid_on.startsWith(prev)).reduce((s, e) => s + e.amount, 0);
     grants.push({ id: db.seq++, member_id: memberId, ym, amount: approve ? Math.max(budget - spent, 0) : 0, kind: 'carryover', note: 'مُرحَّل من ' + prev, created_at: new Date().toISOString() });
   },
+  async getAppInfo() { return { price: null, payment_info: null }; },
+  async redeemLicense() {},
   async setMyAvatar(avatar) { const db = await getDb(); db.profiles[0] = { ...db.profiles[0], avatar: avatar || null }; },
 
   async listCategories() { return [...(await getDb()).categories]; },

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, appleEnabled } from './lib/api';
-import { currentYm } from './lib/format';
+import { currentYm, daysLabel } from './lib/format';
 import type { BudgetRow, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
-import { StoreContext, type Store } from './store';
+import { licenseOf, StoreContext, type Store } from './store';
+import { MishkatCredit } from './components/Brand';
 import Scene, { Backdrop, type SceneName } from './components/Scene';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
@@ -83,10 +84,12 @@ export default function App() {
   const store = useMemo<Store | null>(() => {
     if (!me || !data) return null;
     const self = { ...(data.profiles.find((p) => p.id === me.id) ?? me), anonymous: me.anonymous };
+    const license = licenseOf(data.household);
     return {
       me: self, ...data, incomes, version, reload, lockIncome,
       isAdmin: self.role === 'admin',
-      canWrite: self.role === 'admin' || self.role === 'member',
+      license,
+      canWrite: (self.role === 'admin' || self.role === 'member') && !license.expired,
       async run(fn) {
         try { await fn(); await reload(); return true; }
         catch (e) { setError((e as Error).message); return false; }
@@ -107,6 +110,7 @@ export default function App() {
         <div className="login card">
           <img src="./icon.svg" alt="" width={72} height={72} />
           <h1>ميزانية البيت</h1>
+          <MishkatCredit />
           <p className="muted">سجّل الدخل والمصروفات وتابع ميزانية الأسرة</p>
           {error && <p className="error">{error}</p>}
           <button className="btn primary block" onClick={() => api.signIn('google').catch((e) => setError(e.message))}>الدخول بحساب جوجل</button>
@@ -148,6 +152,18 @@ export default function App() {
         </header>
         {api.mode === 'local' && (
           <div className="banner">وضع تجريبي: البيانات على هذا الجهاز فقط، والتعديلات تزول عند إعادة تحميل الصفحة.</div>
+        )}
+        {store.license.expired && (
+          <div className="banner danger" role="alert">
+            انتهى الشهر المجاني. بياناتك محفوظة وتظهر للعرض، والتسجيل والتعديل متوقفان حتى التفعيل.{' '}
+            <button className="link" onClick={() => setTab('admin')}>{store.isAdmin ? 'تفعيل الآن' : 'التفاصيل'}</button>
+          </div>
+        )}
+        {!store.license.expired && !store.license.licensed && store.license.daysLeft <= 7 && (
+          <div className="banner">
+            باقي {daysLabel(store.license.daysLeft)} من الشهر المجاني.{' '}
+            <button className="link" onClick={() => setTab('admin')}>التفاصيل</button>
+          </div>
         )}
         {error && (
           <div className="banner danger" role="alert">

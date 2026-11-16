@@ -4,6 +4,13 @@ const nf2 = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFr
 export const money = (n: number) => nf.format(Math.round(n));
 export const moneyExact = (n: number) => nf2.format(n);
 
+/** «3 أيام»، «12 يوماً»، «يوم واحد»، «يومان» */
+export function daysLabel(n: number): string {
+  if (n === 1) return 'يوم واحد';
+  if (n === 2) return 'يومان';
+  return n >= 3 && n <= 10 ? n + ' أيام' : n + ' يوماً';
+}
+
 export const MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 const pad = (n: number) => String(n).padStart(2, '0');

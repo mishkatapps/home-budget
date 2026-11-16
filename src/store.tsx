@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Beneficiary, Category, Household, Income, Profile, SummaryRow } from './lib/types';
+import type { AllowanceTotal, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
 
 export interface Store {
   me: Profile;
@@ -7,8 +7,13 @@ export interface Store {
   profiles: Profile[];
   categories: Category[];
   beneficiaries: Beneficiary[];
-  incomes: Income[];
+  /** دخل المدير الحالي؛ null ما دام قفل الدخل مغلقاً (لا يُجلب من الخادم قبل الفتح) */
+  incomes: Income[] | null;
   summary: SummaryRow[];
+  /** ميزانية كل عضو = مجموع ما منحه له المديرون؛ تظهر لكل الأسرة */
+  allowances: AllowanceTotal[];
+  /** ما منحه المدير الحالي نفسه */
+  myGrants: Grant[];
   /** يتغير بعد كل إعادة تحميل — تستخدمه الصفحات لإعادة جلب قوائمها */
   version: number;
   isAdmin: boolean;
@@ -16,6 +21,9 @@ export interface Store {
   reload(): Promise<void>;
   /** ينفذ عملية كتابة ثم يعيد التحميل، ويعرض الخطأ إن فشلت */
   run(fn: () => Promise<void>): Promise<boolean>;
+  /** يجلب دخل المدير بعد نجاح التحقق (بصمة/وجه/PIN) */
+  unlockIncome(): Promise<void>;
+  lockIncome(): void;
 }
 
 export const StoreContext = createContext<Store | null>(null);
@@ -30,3 +38,5 @@ export const nameOf = (list: { id: number | string; name?: string; full_name?: s
   const x = list.find((i) => i.id === id);
   return x ? (x.name ?? x.full_name ?? '') : '';
 };
+
+export const allowanceOf = (list: AllowanceTotal[], memberId: string) => list.find((a) => a.member_id === memberId)?.total ?? 0;

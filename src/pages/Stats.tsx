@@ -6,8 +6,10 @@ import { groupSum, monthTotals, sortedEntries, type MonthTotals } from '../lib/s
 import { nameOf, useStore } from '../store';
 
 export default function Stats() {
-  const { summary, incomes, categories, beneficiaries } = useStore();
-  const totals = useMemo(() => monthTotals(summary, incomes), [summary, incomes]);
+  const { summary, incomes, categories, beneficiaries, isAdmin } = useStore();
+  // الدخل خاص بالمدير ويظهر هنا فقط بعد فتح القفل؛ غير ذلك تُعرض المصروفات وحدها
+  const showIncome = incomes !== null;
+  const totals = useMemo(() => monthTotals(summary, incomes ?? []), [summary, incomes]);
   const years = useMemo(() => [...new Set(totals.map((t) => t.ym.slice(0, 4)))].sort().reverse(), [totals]);
   const [period, setPeriod] = useState('last12');
 
@@ -45,19 +47,24 @@ export default function Stats() {
       </div>
 
       <div className="tiles">
-        <Tile label="إجمالي الدخل" value={money(income)} />
-        <Tile label="إجمالي المصروف" value={money(spent)} hint={`متوسط شهري ${money(spent / active)}`} />
-        <Tile
-          label="الصافي (الادخار)"
-          value={money(income - spent)}
-          tone={income - spent < 0 ? 'bad' : 'good'}
-          hint={income > 0 ? `${Math.round(((income - spent) / income) * 100)}% من الدخل` : undefined}
-        />
+        <Tile label="إجمالي المصروف" value={money(spent)} />
+        <Tile label="متوسط الصرف الشهري" value={money(spent / active)} hint={`على ${active} ${active === 1 ? 'شهر' : 'شهور'} فيها صرف`} />
         <Tile label="أعلى شهر صرفاً" value={money(top.spent)} hint={top.spent > 0 ? ymLabel(top.ym) : undefined} />
+        {showIncome ? (
+          <Tile
+            label="دخلي ناقص المصروف"
+            value={money(income - spent)}
+            tone={income - spent < 0 ? 'bad' : 'good'}
+            hint={`دخلي ${money(income)}`}
+          />
+        ) : (
+          <Tile label="عدد العمليات" value={String(rows.reduce((s, r) => s + r.n, 0))} />
+        )}
       </div>
 
-      <Section title="الدخل والمصروف شهرياً">
-        <MonthlyChart months={months} />
+      <Section title={showIncome ? 'دخلي والمصروف شهرياً' : 'المصروف شهرياً'}>
+        <MonthlyChart months={months} showIncome={showIncome} />
+        {isAdmin && !showIncome && <p className="muted small">الدخل مقفل. افتحه من «الرئيسية» أو «الدخل» ليظهر هنا بجوار المصروف.</p>}
       </Section>
 
       <Section title="المصروف حسب البند">
@@ -76,14 +83,16 @@ export default function Stats() {
       <Section title="ملخص السنوات">
         <div className="table-wrap">
           <table>
-            <thead><tr><th>السنة</th><th>الدخل</th><th>المصروف</th><th>الصافي</th><th>متوسط الصرف الشهري</th></tr></thead>
+            <thead>
+              <tr><th>السنة</th>{showIncome && <th>دخلي</th>}<th>المصروف</th>{showIncome && <th>الصافي</th>}<th>متوسط الصرف الشهري</th></tr>
+            </thead>
             <tbody>
               {yearly.map((r) => (
                 <tr key={r.y}>
                   <td>{r.y}</td>
-                  <td className="num">{money(r.income)}</td>
+                  {showIncome && <td className="num">{money(r.income)}</td>}
                   <td className="num">{money(r.spent)}</td>
-                  <td className={`num ${r.income - r.spent < 0 ? 'bad' : ''}`}>{money(r.income - r.spent)}</td>
+                  {showIncome && <td className={`num ${r.income - r.spent < 0 ? 'bad' : ''}`}>{money(r.income - r.spent)}</td>}
                   <td className="num">{money(r.spent / r.n)}</td>
                 </tr>
               ))}

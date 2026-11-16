@@ -139,6 +139,65 @@ create unique index if not exists beneficiaries_household_name on public.benefic
 create unique index if not exists incomes_household_legacy on public.incomes (household_id, legacy_id);
 create unique index if not exists expenses_household_legacy on public.expenses (household_id, legacy_id);
 
+-- ───────────── المصروف الشهري الممنوح (ميزانية الأسرة الظاهرة للجميع) ─────────────
+-- كل مدير يمنح من دخله مصروفاً شهرياً لأفراد الأسرة ولنفسه. مجموع ما يُمنح للعضو هو ميزانيته،
+-- ومجموع الكل هو ميزانية الأسرة. من منح كم يبقى خاصاً بالمدير المانح.
+create table if not exists public.allowances (
+  id bigint generated always as identity primary key,
+  household_id uuid not null default public.my_household() references public.households (id) on delete cascade,
+  granted_by uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  member_id uuid not null references public.profiles (id) on delete cascade,
+  amount numeric(12, 2) not null check (amount > 0),
+  updated_at timestamptz not null default now(),
+  unique (granted_by, member_id)
+);
+
+-- ترحيل: الميزانية الشهرية القديمة للعضو تصير مصروفاً ممنوحاً من أقدم مدير، والدخل القديم بلا صاحب يصير لأقدم مدير
+do $$
+begin
+  perform set_config('app.skip_audit', 'on', true);
+  insert into public.allowances (household_id, granted_by, member_id, amount)
+    select p.household_id, a.id, p.id, p.monthly_budget
+    from public.profiles p
+    join lateral (select x.id from public.profiles x where x.household_id = p.household_id and x.role = 'admin' order by x.created_at limit 1) a on true
+    where p.household_id is not null and coalesce(p.monthly_budget, 0) > 0
+    on conflict (granted_by, member_id) do nothing;
+  update public.profiles set monthly_budget = null where monthly_budget is not null;
+  update public.incomes i
+    set created_by = (select x.id from public.profiles x where x.household_id = i.household_id and x.role = 'admin' order by x.created_at limit 1)
+    where i.created_by is null;
+  perform set_config('app.skip_audit', 'off', true);
+end $$;
+
+-- ميزانية كل عضو (مجموع ما منحه له كل المديرين) لأفراد الأسرة المعتمدين، بلا كشف من منح كم
+create or replace function public.get_allowances() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce(jsonb_agg(jsonb_build_object('member_id', t.member_id, 'total', t.total)), '[]'::jsonb) from (
+    select member_id, sum(amount)::float8 as total
+    from public.allowances
+    where household_id = public.my_household() and public.my_role() in ('admin', 'member', 'viewer')
+    group by member_id
+  ) t
+$$;
+
+-- المدير يحدد ما يمنحه هو لعضو (صفر أو فارغ = إلغاء منحته)
+create or replace function public.set_allowance(p_member uuid, p_amount numeric) returns void
+language plpgsql security definer set search_path = public as $$
+declare h uuid := public.my_household();
+begin
+  if h is null or public.my_role() is distinct from 'admin' then raise exception 'منح المصروف لمدير الأسرة فقط'; end if;
+  if not exists (select 1 from public.profiles where id = p_member and household_id = h and role <> 'pending') then
+    raise exception 'العضو ليس من أفراد أسرتك المعتمدين';
+  end if;
+  if coalesce(p_amount, 0) <= 0 then
+    delete from public.allowances where granted_by = auth.uid() and member_id = p_member;
+  else
+    insert into public.allowances (household_id, granted_by, member_id, amount)
+      values (h, auth.uid(), p_member, p_amount)
+      on conflict (granted_by, member_id) do update set amount = excluded.amount, updated_at = now();
+  end if;
+end $$;
+
 -- ───────────── المستخدم الجديد ─────────────
 -- كل حساب جديد يبدأ بلا أسرة؛ ثم ينشئ أسرته (فيصير مديرها) أو ينضم برمز دعوة (فينتظر موافقة مديرها)
 create or replace function public.handle_new_user() returns trigger
@@ -219,16 +278,17 @@ alter table public.beneficiaries enable row level security;
 alter table public.incomes enable row level security;
 alter table public.expenses enable row level security;
 alter table public.audit_log enable row level security;
-alter table public.receipt_scans enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
+alter table public.receipt_scans enable row level security;
+alter table public.allowances enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
 
 grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.categories, public.beneficiaries, public.incomes, public.expenses to authenticated;
 grant select, update on public.profiles, public.households to authenticated;
-grant select on public.audit_log to authenticated;
+grant select on public.audit_log, public.allowances to authenticated;
 
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans')
+    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowances')
   loop execute format('drop policy %I on public.%I', p.policyname, p.tablename); end loop;
 end $$;
 
@@ -256,11 +316,14 @@ create policy beneficiaries_read on public.beneficiaries for select to authentic
 create policy beneficiaries_admin on public.beneficiaries for all to authenticated
   using (household_id = public.my_household() and public.my_role() = 'admin')
   with check (household_id = public.my_household() and public.my_role() = 'admin');
-create policy incomes_read on public.incomes for select to authenticated
-  using (household_id = public.my_household() and public.my_role() in ('admin', 'member', 'viewer'));
-create policy incomes_admin on public.incomes for all to authenticated
-  using (household_id = public.my_household() and public.my_role() = 'admin')
-  with check (household_id = public.my_household() and public.my_role() = 'admin');
+-- الدخل خاص بالمدير الذي سجّله: لا يراه الأعضاء ولا المديرون الآخرون
+create policy incomes_owner on public.incomes for all to authenticated
+  using (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid())
+  with check (household_id = public.my_household() and public.my_role() = 'admin' and created_by = auth.uid());
+
+-- المنح: كل مدير يرى ويعدّل ما منحه هو فقط (الإجماليات للجميع عبر get_allowances)
+create policy allowances_owner_read on public.allowances for select to authenticated
+  using (household_id = public.my_household() and granted_by = auth.uid());
 
 -- المصروفات: العضو يضيف باسمه ويعدّل/يحذف ما سجّله هو، والمدير يعدّل كل مصروفات أسرته
 create policy expenses_read on public.expenses for select to authenticated
@@ -274,8 +337,10 @@ create policy expenses_delete on public.expenses for delete to authenticated
   using (household_id = public.my_household() and (public.my_role() = 'admin' or (public.my_role() = 'member' and created_by = auth.uid())));
 
 -- سجل العمليات: يقرؤه مدير الأسرة فقط، ولا يكتب فيه أحد مباشرة (الكتابة عبر المشغِّلات)
+-- عمليات الدخل والمنح يراها في السجل صاحبها فقط، حفاظاً على خصوصية كل مدير
 create policy audit_admin_read on public.audit_log for select to authenticated
-  using (household_id = public.my_household() and public.my_role() = 'admin');
+  using (household_id = public.my_household() and public.my_role() = 'admin'
+         and (table_name not in ('incomes', 'allowances') or user_id = auth.uid()));
 
 -- ───────────── سجل العمليات (تاريخ ووقت ومستخدم كل عملية) ─────────────
 create or replace function public.audit_row() returns trigger
@@ -299,7 +364,7 @@ begin
 end $$;
 
 do $$ declare t text; begin
-  foreach t in array array['profiles', 'categories', 'beneficiaries', 'incomes', 'expenses'] loop
+  foreach t in array array['profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'allowances'] loop
     execute format('drop trigger if exists audit_%1$s on public.%1$I', t);
     execute format('create trigger audit_%1$s after insert or update or delete on public.%1$I for each row execute function public.audit_row()', t);
   end loop;
@@ -336,7 +401,7 @@ begin
     on conflict (household_id, name) do nothing;
 
   insert into public.incomes (household_id, amount, received_on, legacy_id, created_by)
-    select h, (x ->> 'amount')::numeric, (x ->> 'received_on')::date, (x ->> 'legacy_id')::int, null
+    select h, (x ->> 'amount')::numeric, (x ->> 'received_on')::date, (x ->> 'legacy_id')::int, auth.uid()
     from jsonb_array_elements(coalesce(p -> 'incomes', '[]'::jsonb)) x
     on conflict (household_id, legacy_id) do nothing;
   get diagnostics ni = row_count;
@@ -407,12 +472,12 @@ end $$;
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account()
+  public.delete_household(), public.delete_account(), public.get_allowances(), public.set_allowance(uuid, numeric)
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account()
+  public.delete_household(), public.delete_account(), public.get_allowances(), public.set_allowance(uuid, numeric)
   to authenticated;
 
 -- ───────────── تخزين صور الفواتير (خاص، مجلد لكل أسرة) ─────────────

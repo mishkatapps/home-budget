@@ -20,12 +20,14 @@ interface Db {
 }
 
 let dbPromise: Promise<Db> | null = null;
+/** المصروف الممنوح في الوضع التجريبي (مدير واحد) */
+const grants = new Map<string, number>([['local-admin', 4000], ['local-member', 1500]]);
 
 function emptyDb(): Db {
   return {
     profiles: [
       ADMIN,
-      { id: 'local-member', email: 'member@local', full_name: 'عضو تجريبي', avatar_url: null, role: 'member', household_id: 'local', monthly_budget: 1500, created_at: ADMIN.created_at },
+      { id: 'local-member', email: 'member@local', full_name: 'عضو تجريبي', avatar_url: null, role: 'member', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
       { id: 'local-pending', email: 'new@local', full_name: 'عضو ينتظر الموافقة', avatar_url: null, role: 'pending', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
     ],
     categories: [], beneficiaries: [], incomes: [], expenses: [], audit: [], seq: 1,
@@ -116,6 +118,14 @@ export const localApi: Api = {
     const old = db.profiles[i];
     db.profiles[i] = { ...old, ...patch };
     log(db, 'update', 'profiles', id, old, db.profiles[i]);
+  },
+
+  async getAllowances() { return [...grants.entries()].map(([member_id, total]) => ({ member_id, total })); },
+  async listMyGrants() { return [...grants.entries()].map(([member_id, amount]) => ({ member_id, amount })); },
+  async setAllowance(memberId, amount) {
+    const db = await getDb();
+    if (amount && amount > 0) grants.set(memberId, amount); else grants.delete(memberId);
+    log(db, 'update', 'allowances', memberId, null, { member_id: memberId, amount });
   },
 
   async listCategories() { return [...(await getDb()).categories]; },

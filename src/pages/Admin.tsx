@@ -3,7 +3,7 @@ import { Section } from '../components/ui';
 import { api, importEnabled } from '../lib/api';
 import { dateTimeLabel, money, moneyExact } from '../lib/format';
 import type { AuditEntry, LegacyExport, Role } from '../lib/types';
-import { nameOf, useStore, type Store } from '../store';
+import { allowanceOf, nameOf, useStore, type Store } from '../store';
 import { signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
@@ -40,10 +40,11 @@ function Invite() {
 }
 
 function Members() {
-  const { profiles, me, run } = useStore();
+  const { profiles, me, run, allowances, myGrants } = useStore();
+  const admins = profiles.filter((p) => p.role === 'admin').length;
   return (
-    <Section title="الأعضاء والصلاحيات">
-      <p className="muted small">الميزانية الشهرية اختيارية وتُقارن بما يسجّله العضو من مصروفات.</p>
+    <Section title="الأعضاء والمصروف الشهري">
+      <p className="muted small">حدّد المصروف الشهري الذي تمنحه أنت لكل عضو، ولنفسك أيضاً. مجموع المصروف هو ميزانية الأسرة التي يراها الجميع، ويُحسب على كل عضو ما يسجّله من مصروفات.{admins > 1 ? ' كل مدير يرى ما منحه هو فقط.' : ''}</p>
       <ul className="rows">
         {profiles.map((p) => (
           <li key={p.id} className="stack">
@@ -55,11 +56,19 @@ function Members() {
               <select value={p.role} disabled={p.id === me.id} aria-label="الصلاحية" onChange={(e) => run(() => api.updateProfile(p.id, { role: e.target.value as Role }))}>
                 {ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
               </select>
-              <input
-                type="number" inputMode="decimal" min="0" placeholder="ميزانية شهرية" aria-label="الميزانية الشهرية" defaultValue={p.monthly_budget ?? ''} key={`${p.id}-${p.monthly_budget}`}
-                onBlur={(e) => { const v = toBudget(e.target.value); if (v !== p.monthly_budget) run(() => api.updateProfile(p.id, { monthly_budget: v })); }}
-              />
+              {p.role !== 'pending' && (() => {
+                const mine = myGrants.find((g) => g.member_id === p.id)?.amount ?? null;
+                return (
+                  <input
+                    type="number" inputMode="decimal" min="0" placeholder="مصروف شهري منّي" aria-label="المصروف الشهري الذي أمنحه" defaultValue={mine ?? ''} key={`${p.id}-${mine}`}
+                    onBlur={(e) => { const v = toBudget(e.target.value); if (v !== mine) run(() => api.setAllowance(p.id, v)); }}
+                  />
+                );
+              })()}
             </div>
+            {p.role !== 'pending' && allowanceOf(allowances, p.id) > 0 && (
+              <div className="small">ميزانيته الشهرية{admins > 1 ? ' من كل المديرين' : ''}: <b className="num grant-total">{money(allowanceOf(allowances, p.id))}</b></div>
+            )}
           </li>
         ))}
       </ul>
@@ -116,7 +125,7 @@ function NamedList({ title, kind, hint }: { title: string; kind: 'categories' | 
 }
 
 const ACTIONS: Record<string, string> = { insert: 'إضافة', update: 'تعديل', delete: 'حذف', import: 'استيراد' };
-const TABLES: Record<string, string> = { expenses: 'مصروف', incomes: 'دخل', categories: 'بند', beneficiaries: 'مستفيد', profiles: 'عضو', legacy: 'بيانات أكسيس' };
+const TABLES: Record<string, string> = { allowances: 'مصروف ممنوح', expenses: 'مصروف', incomes: 'دخل', categories: 'بند', beneficiaries: 'مستفيد', profiles: 'عضو', legacy: 'بيانات أكسيس' };
 const FIELDS: Record<string, string> = {
   amount: 'المبلغ', paid_on: 'التاريخ', received_on: 'التاريخ', notes: 'ملاحظات', source: 'المصدر', category_id: 'البند',
   beneficiary_id: 'المستفيد', name: 'الاسم', active: 'مفعّل', monthly_budget: 'الميزانية', role: 'الصلاحية', receipt_path: 'الفاتورة',
@@ -266,7 +275,7 @@ function DangerZone() {
 }
 
 export default function Admin() {
-  const { me, isAdmin, reload } = useStore();
+  const { me, isAdmin, reload, allowances } = useStore();
   // عند فتح الإدارة نجلب أحدث البيانات حتى تظهر طلبات الانضمام الجديدة دون إعادة تحميل الصفحة
   useEffect(() => { reload().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -276,7 +285,7 @@ export default function Admin() {
         {me.anonymous
           ? <p className="muted small">منضم بالرمز بلا حساب جوجل: دخولك محفوظ في هذا المتصفح فقط. إن مسحت بياناته أو غيّرت الجهاز فاطلب الانضمام من جديد.</p>
           : <p className="muted small" dir="ltr">{me.email}</p>}
-        {me.monthly_budget ? <p className="small">ميزانيتك الشهرية: <b className="num">{money(me.monthly_budget)}</b></p> : null}
+        {allowanceOf(allowances, me.id) > 0 && <p className="small">ميزانيتك الشهرية: <b className="num grant-total">{money(allowanceOf(allowances, me.id))}</b></p>}
         <div className="inline">
           {api.mode === 'cloud' && <button className="btn" onClick={() => signOutWithWarning(me)}>تسجيل الخروج</button>}
           <a className="small" href="./privacy.html">سياسة الخصوصية</a>

@@ -19,9 +19,9 @@ function bar(x: number, y: number, w: number, h: number): string {
 }
 
 /** دخل مقابل مصروف لكل شهر. الزمن يسير من اليمين إلى اليسار ليوافق اتجاه القراءة العربي. */
-export default function MonthlyChart({ months }: { months: MonthTotals[] }) {
+export default function MonthlyChart({ months, showIncome = true }: { months: MonthTotals[]; showIncome?: boolean }) {
   const [hover, setHover] = useState<number | null>(null);
-  const max = niceMax(Math.max(...months.map((m) => Math.max(m.income, m.spent)), 1));
+  const max = niceMax(Math.max(...months.map((m) => Math.max(showIncome ? m.income : 0, m.spent)), 1));
   const plotW = W - PAD.start - PAD.end, plotH = H - PAD.top - PAD.bottom;
   const slot = plotW / months.length;
   const bw = Math.min(18, (slot - 8) / 2);
@@ -31,10 +31,10 @@ export default function MonthlyChart({ months }: { months: MonthTotals[] }) {
 
   return (
     <div className="chart">
-      <div className="legend">
+      {showIncome && <div className="legend">
         <span><i className="swatch s1" /> الدخل</span>
         <span><i className="swatch s2" /> المصروف</span>
-      </div>
+      </div>}
       {/* على الشاشات الضيقة يُمرَّر الرسم أفقياً ويبدأ من أحدث الشهور (اليسار) */}
       <div className="chart-scroll" ref={(el) => { if (el) el.scrollLeft = -el.scrollWidth; }}>
       <div className="chart-plot">
@@ -50,8 +50,8 @@ export default function MonthlyChart({ months }: { months: MonthTotals[] }) {
             return (
               <g key={m.ym} onMouseEnter={() => setHover(i)} onClick={() => setHover(i)}>
                 <rect x={slotX(i)} y={PAD.top} width={slot} height={plotH} className={hover === i ? 'band on' : 'band'} />
-                {m.income > 0 && <path d={bar(cx + 1, y(m.income), bw, plotH - (y(m.income) - PAD.top))} className="s1" />}
-                {m.spent > 0 && <path d={bar(cx - bw - 1, y(m.spent), bw, plotH - (y(m.spent) - PAD.top))} className="s2" />}
+                {showIncome && m.income > 0 && <path d={bar(cx + 1, y(m.income), bw, plotH - (y(m.income) - PAD.top))} className="s1" />}
+                {m.spent > 0 && <path d={bar(showIncome ? cx - bw - 1 : cx - bw / 2, y(m.spent), bw, plotH - (y(m.spent) - PAD.top))} className="s2" />}
                 <text x={cx} y={H - 9} className="tick" textAnchor="middle">
                   {months.length > 12 && i % 2 ? '' : MONTHS[Number(m.ym.slice(5)) - 1]}
                 </text>
@@ -62,9 +62,9 @@ export default function MonthlyChart({ months }: { months: MonthTotals[] }) {
         {h && hover != null && (
           <div className="tooltip" style={{ left: `${((slotX(hover) + slot / 2) / W) * 100}%` }}>
             <strong>{ymLabel(h.ym)}</strong>
-            <span><i className="swatch s1" /> الدخل <b className="num">{money(h.income)}</b></span>
+            {showIncome && <span><i className="swatch s1" /> الدخل <b className="num">{money(h.income)}</b></span>}
             <span><i className="swatch s2" /> المصروف <b className="num">{money(h.spent)}</b></span>
-            <span>الصافي <b className="num">{money(h.income - h.spent)}</b></span>
+            {showIncome && <span>الصافي <b className="num">{money(h.income - h.spent)}</b></span>}
           </div>
         )}
       </div>

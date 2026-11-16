@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { IncomeGate } from '../components/IncomeLock';
 import { Modal } from '../components/ui';
 import { api } from '../lib/api';
 import { dayLabel, moneyExact, todayStr, ymLabel } from '../lib/format';
@@ -43,7 +44,12 @@ function IncomeForm({ initial, onClose }: { initial: Income | null; onClose: () 
 }
 
 export default function Incomes() {
-  const { incomes, isAdmin, profiles } = useStore();
+  return <IncomeGate><IncomeList /></IncomeGate>;
+}
+
+function IncomeList() {
+  const { isAdmin, profiles, lockIncome } = useStore();
+  const incomes = useStore().incomes ?? [];
   const [editing, setEditing] = useState<Income | null | 'new'>(null);
   const [limit, setLimit] = useState(12);
 
@@ -59,7 +65,7 @@ export default function Incomes() {
   return (
     <>
       <div className="toolbar">
-        <p className="muted small grow">يمكن تسجيل دخل الشهر دفعة واحدة أو على عدة دفعات؛ يُجمع تلقائياً لكل شهر.</p>
+        <p className="muted small grow">دخلك خاص بك: لا يراه أفراد الأسرة ولا المديرون الآخرون. يمكن تسجيله دفعة واحدة أو على عدة دفعات. <button className="link" onClick={lockIncome}>قفل الآن</button></p>
         {isAdmin && <button className="btn primary" onClick={() => setEditing('new')}>+ تسجيل دخل</button>}
       </div>
       {!isAdmin && <p className="muted small">تسجيل الدخل وتعديله من صلاحيات مدير الأسرة.</p>}

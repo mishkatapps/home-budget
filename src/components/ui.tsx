@@ -67,6 +67,28 @@ export function Meter({ label, spent, budget }: { label: string; spent: number; 
   );
 }
 
+/** ميزانية عضو بأرقام بارزة: المتبقي كبير وملوّن، والحالة مكتوبة نصاً لا باللون وحده */
+export function MemberBudget({ name, spent, budget, self }: { name: string; spent: number; budget: number; self?: boolean }) {
+  const ratio = budget > 0 ? spent / budget : 0;
+  const state = ratio > 1 ? 'over' : ratio > 0.85 ? 'warn' : 'ok';
+  const left = budget - spent;
+  return (
+    <div className={`member-budget ${state} ${self ? 'self' : ''}`}>
+      <div className="mb-head">
+        <b>{name}</b>{self && <span className="chip">أنت</span>}
+        <span className="mb-state">{state === 'over' ? '⚠ تجاوز الميزانية' : state === 'warn' ? 'قارب على النهاية' : 'في الحدود'}</span>
+      </div>
+      <div className="mb-figures">
+        <div><span className="muted small">{left < 0 ? 'التجاوز' : 'المتبقي'}</span><strong className="mb-left num">{money(Math.abs(left))}</strong></div>
+        <div><span className="muted small">صُرف</span><strong className="num">{money(spent)}</strong></div>
+        <div><span className="muted small">الميزانية</span><strong className="num">{money(budget)}</strong></div>
+      </div>
+      <div className="track"><div className={`fill ${state}`} style={{ width: `${Math.min(100, ratio * 100)}%` }} /></div>
+      <div className="muted small">{Math.round(ratio * 100)}% من الميزانية</div>
+    </div>
+  );
+}
+
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>

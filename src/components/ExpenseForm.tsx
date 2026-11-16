@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { moneyExact, todayStr } from '../lib/format';
 import type { Expense, ExpenseInput, ReceiptResult } from '../lib/types';
@@ -16,15 +16,41 @@ async function shrinkImage(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('تعذرت معالجة الصورة'))), 'image/jpeg', 0.75));
 }
 
+/** تفضيلات صغيرة تُحفظ على هذا الجهاز؛ التطبيق يعمل بدونها إن تعذّر التخزين */
+function readPref(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } }
+function writePref(key: string, value: string) { try { localStorage.setItem(key, value); } catch { /* تخزين محجوب */ } }
+const SLOW_NOTICE_KEY = 'receiptNoticeHidden';
+
 export default function ExpenseForm({ initial, onClose }: { initial: Expense | null; onClose: () => void }) {
-  const { categories, beneficiaries, run } = useStore();
+  const { categories, beneficiaries, run, household } = useStore();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const defaultKey = `defaultBeneficiary:${household?.id ?? 'local'}`;
+  const [defaultBen, setDefaultBen] = useState(() => readPref(defaultKey));
+  const [notice, setNotice] = useState(false);
+  const [hideNotice, setHideNotice] = useState(false);
   const cats = categories.filter((c) => c.active || c.id === initial?.category_id);
   const bens = beneficiaries.filter((b) => b.active || b.id === initial?.beneficiary_id);
 
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
   const [categoryId, setCategoryId] = useState<number | ''>(initial?.category_id ?? '');
   const [date, setDate] = useState(initial?.paid_on ?? todayStr());
-  const [beneficiaryId, setBeneficiaryId] = useState<number | ''>(initial ? (initial.beneficiary_id ?? '') : (bens[0]?.id ?? ''));
+  // لمصروف جديد: المستفيد الافتراضي الذي اختاره المستخدم، وإلا أول مستفيد
+  const [beneficiaryId, setBeneficiaryId] = useState<number | ''>(() => {
+    if (initial) return initial.beneficiary_id ?? '';
+    if (defaultBen === 'none') return '';
+    return bens.find((b) => String(b.id) === defaultBen)?.id ?? bens[0]?.id ?? '';
+  });
+  const benKey = beneficiaryId === '' ? 'none' : String(beneficiaryId);
+
+  function pickPhoto() {
+    if (readPref(SLOW_NOTICE_KEY)) fileInput.current?.click();
+    else setNotice(true);
+  }
+  function continueToPhoto() {
+    if (hideNotice) writePref(SLOW_NOTICE_KEY, '1');
+    setNotice(false);
+    fileInput.current?.click();
+  }
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [receipt, setReceipt] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -88,13 +114,23 @@ export default function ExpenseForm({ initial, onClose }: { initial: Expense | n
     <Modal title={initial ? 'تعديل مصروف' : 'تسجيل مصروف'} onClose={onClose}>
       <form className="form" onSubmit={save}>
         <div className="receipt">
-          <label className="btn">
-            📷 {preview ? 'تغيير صورة الفاتورة' : 'صورة فاتورة'}
-            {/* بدون capture: الهاتف يعرض الكاميرا أو المعرض، والحاسب يفتح اختيار ملف */}
-            <input type="file" accept="image/*" hidden onChange={(e) => onPhoto(e.target.files?.[0])} />
-          </label>
+          <button type="button" className="btn" onClick={pickPhoto}>📷 {preview ? 'تغيير صورة الفاتورة' : 'صورة فاتورة'}</button>
+          {/* بدون capture: الهاتف يعرض الكاميرا أو المعرض، والحاسب يفتح اختيار ملف */}
+          <input ref={fileInput} type="file" accept="image/*" hidden onChange={(e) => { onPhoto(e.target.files?.[0]); e.target.value = ''; }} />
           {receipt && <button type="button" className="btn primary" disabled={busy} onClick={analyze}>تحليل الفاتورة</button>}
         </div>
+        {notice && (
+          <div className="notice" role="alertdialog" aria-label="تنبيه عن تحليل الفاتورة">
+            <b>تحليل الفاتورة قد يكون بطيئاً</b>
+            <p className="small">قراءة الفاتورة تقوم بها خدمة ذكاء اصطناعي من جوجل (Gemini) على حصتها المجانية. تستغرق عادة بضع ثوانٍ، وقد تصل إلى نصف دقيقة وقت ازدحام الخدمة، وأحياناً تعتذر عن الرد فتُدخل البيانات يدوياً.</p>
+            <p className="small">الصورة تُرفق بالمصروف في كل الأحوال، والتحليل اختياري. راجع الأرقام المقروءة قبل الحفظ.</p>
+            <label className="check small"><input type="checkbox" checked={hideNotice} onChange={(e) => setHideNotice(e.target.checked)} /> لا تُظهر هذه الرسالة مرة أخرى</label>
+            <div className="form-actions">
+              <button type="button" className="btn primary" onClick={continueToPhoto}>متابعة</button>
+              <button type="button" className="btn" onClick={() => setNotice(false)}>إلغاء</button>
+            </div>
+          </div>
+        )}
         {status && <p className="muted small" role="status">{status}</p>}
         {preview && <a href={preview} target="_blank" rel="noreferrer"><img className="receipt-img" src={preview} alt="صورة الفاتورة" /></a>}
         {analysis && analysis.items.length > 0 && (
@@ -119,6 +155,9 @@ export default function ExpenseForm({ initial, onClose }: { initial: Expense | n
             <option value="">غير محدد</option>
             {bens.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+          {benKey === (defaultBen ?? String(bens[0]?.id ?? 'none'))
+            ? <span className="muted small">هذا هو المستفيد الافتراضي عندك.</span>
+            : <button type="button" className="link small start" onClick={() => { writePref(defaultKey, benKey); setDefaultBen(benKey); }}>اجعله الافتراضي للمصروفات الجديدة</button>}
         </label>
         <label>ملاحظات<input value={notes} maxLength={250} onChange={(e) => setNotes(e.target.value)} /></label>
         <div className="form-actions">

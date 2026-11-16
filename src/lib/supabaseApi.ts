@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import type { AllowanceTotal, Grant } from './types';
 import type { Api, AuditEntry, Beneficiary, Category, Expense, Household, Income, Profile, ReceiptResult, SummaryRow } from './types';
 
 const PAGE = 1000; // الحد الأقصى للصفوف في الطلب الواحد لدى Supabase
@@ -107,6 +108,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
 
     async listProfiles() { return check(await sb.from('profiles').select('*').order('created_at')) as Profile[]; },
     async updateProfile(id, patch) { check(await sb.from('profiles').update(patch).eq('id', id)); },
+
+    async getAllowances() {
+      const { data, error } = await sb.rpc('get_allowances');
+      return error ? [] : ((data ?? []) as AllowanceTotal[]); // خطأ = مخطط قديم بلا جدول المنح
+    },
+    async listMyGrants() {
+      const { data, error } = await sb.from('allowances').select('member_id,amount');
+      return error ? [] : ((data ?? []) as Grant[]);
+    },
+    async setAllowance(memberId, amount) { check(await sb.rpc('set_allowance', { p_member: memberId, p_amount: amount })); },
 
     async listCategories() { return check(await sb.from('categories').select('*').order('id')) as Category[]; },
     async saveCategory(c) { await upsertRow('categories', c); },

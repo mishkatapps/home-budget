@@ -22,6 +22,17 @@ export interface Household {
   invite_code: string;
 }
 
+/** ميزانية العضو الشهرية = مجموع ما منحه له كل المديرين */
+export interface AllowanceTotal {
+  member_id: string;
+  total: number;
+}
+/** ما منحه المدير الحالي نفسه لعضو (خاص به) */
+export interface Grant {
+  member_id: string;
+  amount: number;
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -124,7 +135,13 @@ export interface Api {
   deleteAccount(): Promise<void>;
 
   listProfiles(): Promise<Profile[]>;
-  updateProfile(id: string, patch: Partial<Pick<Profile, 'role' | 'monthly_budget'>>): Promise<void>;
+  updateProfile(id: string, patch: Partial<Pick<Profile, 'role'>>): Promise<void>;
+
+  /** ميزانيات الأعضاء (الإجماليات) — تظهر لكل أفراد الأسرة */
+  getAllowances(): Promise<AllowanceTotal[]>;
+  /** ما منحه المدير الحالي — خاص به */
+  listMyGrants(): Promise<Grant[]>;
+  setAllowance(memberId: string, amount: number | null): Promise<void>;
 
   listCategories(): Promise<Category[]>;
   saveCategory(c: Partial<Category> & { name: string }): Promise<void>;

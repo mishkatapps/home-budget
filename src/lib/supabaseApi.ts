@@ -141,7 +141,16 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const { data, error } = await sb.functions.invoke('analyze-receipt', {
         body: { image: await blobToBase64(image), mime: image.type || 'image/jpeg', categories },
       });
-      if (error) throw new Error('تعذر تحليل الفاتورة: ' + error.message);
+      if (error) {
+        // رد الدالة برمز خطأ: نص السبب في جسم الرد لا في error.message
+        let reason = error.message;
+        try {
+          const body = await (error as { context?: Response }).context?.json();
+          if (body?.error) reason = body.error;
+          else if (body?.message) reason = body.message;
+        } catch { /* الرد ليس JSON */ }
+        throw new Error('تعذر تحليل الفاتورة: ' + reason);
+      }
       if (data?.error) throw new Error(data.error);
       return data as ReceiptResult;
     },

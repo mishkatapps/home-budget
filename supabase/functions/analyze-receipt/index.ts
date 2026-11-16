@@ -56,7 +56,8 @@ Deno.serve(async (req) => {
       generationConfig: { responseMimeType: 'application/json', temperature: 0 },
     });
     // أسماء النماذج تتغير: نجرب المضبوط ثم بدائل، وننتقل للتالي إن كان النموذج غير موجود
-    const models = [...new Set([model, 'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.0-flash'])];
+    // (الأسماء من صفحة أسعار Gemini، نوفمبر 2026؛ gemini-2.5-flash أُوقف)
+    const models = [...new Set([model, 'gemini-flash-latest', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-2.5-flash-lite'])];
     let res: Response | null = null;
     let detail = '';
     for (const m of models) {

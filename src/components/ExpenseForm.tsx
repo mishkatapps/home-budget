@@ -5,15 +5,15 @@ import type { Expense, ExpenseInput, ReceiptResult } from '../lib/types';
 import { useStore } from '../store';
 import { Modal } from './ui';
 
-/** يصغّر صورة الفاتورة إلى JPEG بحد أقصى 1600 بكسل لتقليل الحجم قبل الرفع والتحليل */
+/** يصغّر صورة الفاتورة إلى JPEG بحد أقصى 1280 بكسل: كافٍ للقراءة وخفيف على الخادم المجاني */
 async function shrinkImage(file: File): Promise<Blob> {
   const bmp = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bmp.width * scale);
   canvas.height = Math.round(bmp.height * scale);
   canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('تعذرت معالجة الصورة'))), 'image/jpeg', 0.82));
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('تعذرت معالجة الصورة'))), 'image/jpeg', 0.75));
 }
 
 export default function ExpenseForm({ initial, onClose }: { initial: Expense | null; onClose: () => void }) {

@@ -1,7 +1,21 @@
 // دالة Supabase Edge: تستقبل صورة فاتورة وتعيد بياناتها باستخدام Gemini.
 // مفتاح Gemini يبقى سراً على الخادم:  supabase secrets set GEMINI_API_KEY=...
 // النشر:  supabase functions deploy analyze-receipt
-import { createClient } from 'npm:@supabase/supabase-js@2';
+// بلا مكتبات خارجية عمداً: تحميل مكتبة Supabase عند كل تشغيل يستهلك حصة المعالجة في الخطة المجانية.
+
+/** يستدعي دالة قاعدة بيانات بصلاحية المستخدم صاحب الطلب (RLS وصلاحياته تنطبق عليه) */
+async function rpc(req: Request, name: string): Promise<unknown> {
+  const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/${name}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Authorization: req.headers.get('Authorization') ?? '',
+    },
+    body: '{}',
+  });
+  return res.ok ? await res.json() : null;
+}
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -14,22 +28,19 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
     // لا يُسمح إلا لعضو معتمد (مدير أو عضو)
-    const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
-      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
-    });
-    const { data: role } = await sb.rpc('my_role');
+    const role = await rpc(req, 'my_role');
     if (role !== 'admin' && role !== 'member') return json({ error: 'غير مصرح لك بتحليل الفواتير' }, 403);
 
     // حد يومي لكل أسرة حتى لا تُستنزف حصة Gemini المشتركة
-    const { data: allowed } = await sb.rpc('claim_receipt_scan');
-    if (!allowed) return json({ error: 'بلغت أسرتك الحد اليومي لتحليل الفواتير (30). حاول غداً أو أدخل البيانات يدوياً.' }, 429);
+    const allowed = await rpc(req, 'claim_receipt_scan');
+    if (allowed !== true) return json({ error: 'بلغت أسرتك الحد اليومي لتحليل الفواتير (30). حاول غداً أو أدخل البيانات يدوياً.' }, 429);
 
     const key = Deno.env.get('GEMINI_API_KEY');
     if (!key) return json({ error: 'لم يُضبط مفتاح GEMINI_API_KEY على الخادم' }, 500);
     const model = Deno.env.get('GEMINI_MODEL') ?? 'gemini-flash-latest';
 
     const { image, mime, categories } = await req.json();
-    if (typeof image !== 'string' || image.length > 8_000_000) return json({ error: 'صورة غير صالحة أو كبيرة جداً' }, 400);
+    if (typeof image !== 'string' || image.length > 3_000_000) return json({ error: 'صورة غير صالحة أو كبيرة جداً' }, 400);
     const cats = Array.isArray(categories) ? categories.filter((c) => typeof c === 'string').slice(0, 100) : [];
 
     const prompt = `هذه صورة فاتورة أو إيصال شراء (قد تكون بالعربية أو الإنجليزية، مطبوعة أو بخط اليد).

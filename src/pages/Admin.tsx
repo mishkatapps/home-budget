@@ -3,6 +3,7 @@ import { Section } from '../components/ui';
 import { api, importEnabled } from '../lib/api';
 import { currentYm, dateTimeLabel, dayLabel, daysLabel, money, moneyExact } from '../lib/format';
 import { priceView } from '../lib/pricing';
+import InstaPay from '../components/InstaPay';
 import type { AppInfo, AuditEntry, LegacyExport, Role } from '../lib/types';
 import { MishkatCredit } from '../components/Brand';
 import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, type PrefKey } from '../lib/prefs';
@@ -343,7 +344,8 @@ function Subscription() {
         </div>
       )}
       {info?.payment_info && <p className="small pre">{info.payment_info}</p>}
-      <p className="small">للحصول على رمز التفعيل راسل مشكاة: <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a></p>
+      <InstaPay amount={pv?.final} currency={pv?.currency} />
+      <p className="small">بعد التحويل أرسل صورة التحويل واسم أسرتك «{household.name}» إلى <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a> ليصلك رمز التفعيل.</p>
       {isAdmin ? (
         <form className="inline wrap" onSubmit={activate}>
           <input dir="ltr" placeholder="رمز التفعيل MSK-…" required autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />

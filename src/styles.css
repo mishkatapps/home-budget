@@ -300,3 +300,18 @@ p.muted.small { font-weight: 700; }
 .rate-stars .muted { margin-inline-start: 8px; }
 textarea { font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--axis); border-radius: 10px; padding: 8px 10px; width: 100%; resize: vertical; }
 .invite.inline-code { display: inline-block; flex: none; padding: 4px 10px; font-size: 1rem; }
+
+/* بطاقة الدفع عبر InstaPay (بنفس شكل صفحة «ادعم مشكاة») */
+.instapay { display: grid; justify-items: center; gap: 8px; text-align: center; margin: 12px 0; padding: 16px; border-radius: 16px; background: #f7f1e3; color: #0b1d3f; border: 1px solid #e7dcc2; }
+.ip-via { font-weight: 700; color: #8a6a22; font-size: .9rem; }
+.ip-name { font: 800 2rem/1 Arial, sans-serif; color: #0b1d3f; }
+.ip-amount { font-size: 1rem; }
+.ip-amount b { font-size: 1.3rem; }
+.ip-qr { width: 200px; height: 200px; max-width: 70vw; max-height: 70vw; background: #fff; border-radius: 16px; padding: 10px; }
+.ip-qr img { width: 100%; height: 100%; display: block; }
+.ip-addr { background: #0b1d3f; color: #d9b15c; font: 800 1.15rem/1.2 Arial, sans-serif; padding: 10px 16px; border-radius: 12px; max-width: 100%; overflow-wrap: anywhere; }
+.ip-btns { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.instapay .btn { border-color: #cdbf9c; }
+.instapay .btn:not(.primary) { background: #fff; color: #0b1d3f; }
+.instapay .btn.primary { background: #d9b15c; color: #0b1d3f; border-color: #d9b15c; text-decoration: none; }
+.instapay .muted { color: #636b80; }

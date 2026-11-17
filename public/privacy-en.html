@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <title>Privacy policy — Home Budget</title>
+    <style>
+      :root { --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --line: #e1e0d9; --accent: #1c5cab; color-scheme: light dark; }
+      @media (prefers-color-scheme: dark) { :root { --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --line: #2c2c2a; --accent: #6da7ec; } }
+      body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.8 "Segoe UI", Tahoma, "Noto Sans Arabic", system-ui, sans-serif; }
+      main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+      h1 { font-size: 1.6rem; margin: 0 0 4px; }
+      h2 { font-size: 1.1rem; margin: 28px 0 6px; }
+      p, li { color: var(--ink2); }
+      ul { padding-inline-start: 22px; margin: 6px 0; }
+      a { color: var(--accent); }
+      .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-top: 16px; }
+      .card p { margin: 0; color: var(--ink); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p><a href="./?lang=en">← Back to the app</a> · <a href="./privacy.html">العربية</a></p>
+      <h1>Privacy policy</h1>
+      <p>The "Home Budget" app by <a href="https://mishkatapps.github.io/?lang=en">Mishkat</a> · Last updated: November 17, 2026</p>
+
+      <div class="card">
+        <p>In short: your family's data is visible only to people your family admin approves. No ads, and we don't sell your data or share it for marketing.</p>
+      </div>
+
+      <h2>What we store</h2>
+      <ul>
+        <li><strong>Account data:</strong> your name, email, and profile picture as Google sends them when you sign in. We never receive your password.</li>
+        <li><strong>Ratings and suggestions:</strong> if you send a rating from the app, what you wrote (stars, suggestion, and your name and contact if you entered them) is saved in a Mishkat spreadsheet on Google, not linked to your family's data.</li>
+        <li><strong>Members who join with an invite code and no account:</strong> we store only the name they enter, with no email or phone number.</li>
+        <li><strong>Family data:</strong> the family name, income, expenses and their notes, categories, beneficiaries, and the budgets you enter.</li>
+        <li><strong>Receipt photos:</strong> if you attach them to an expense.</li>
+        <li><strong>Activity log:</strong> who added, edited, or deleted what, and when.</li>
+      </ul>
+
+      <h2>Who can see your family's data</h2>
+      <ul>
+        <li>Only your family members approved by its admin. Anyone who enters the invite code sees nothing until the admin approves.</li>
+        <li><strong>Income</strong> is visible only to the admin who recorded it: not to family members or other admins. Everyone sees the monthly allowances granted and the expenses.</li>
+        <li>No other family can see your data; the separation is enforced in the database itself, not just in the app's interface.</li>
+        <li>The operator of the app has administrative access to the database in order to run and maintain it, and looks at family data only when technically necessary, such as fixing a fault, or at the data owner's request.</li>
+      </ul>
+
+      <h2>Where data is kept and who processes it</h2>
+      <ul>
+        <li><strong>Supabase:</strong> hosts the database, receipt photos, and sign-in, on servers in Europe.</li>
+        <li><strong>Google:</strong> Google sign-in. When you press "Analyze receipt", that receipt's photo is sent to Google's Gemini service to read it. If you don't use analysis, no photo is sent.</li>
+        <li><strong>GitHub Pages:</strong> hosts only the app's interface files; your family's data never passes through it.</li>
+      </ul>
+
+      <h2>What we don't do</h2>
+      <ul>
+        <li>No ads, and no tracking or analytics tools inside the app.</li>
+        <li>We don't sell your data or share it with anyone for marketing.</li>
+      </ul>
+
+      <h2>Storage on your device</h2>
+      <p>The app keeps your sign-in session in your browser so you don't have to sign in every time; signing out removes it. On your device only, it also keeps the income lock (the secret code, hashed, and the fingerprint key ID if you enabled it) and your preferences such as the default beneficiary and language. Your fingerprint itself never leaves your device and never reaches us.</p>
+
+      <h2>Deleting your data</h2>
+      <ul>
+        <li>The family admin can delete any income or expense directly in the app, and members can delete what they recorded.</li>
+        <li><strong>Deleting the family:</strong> from "Admin → Delete data", the admin permanently deletes the family with all its income, expenses, categories, receipt photos, and activity log.</li>
+        <li><strong>Deleting your account:</strong> from the same place, any user can permanently delete their account (name and email). Expenses they recorded stay with their family without a name.</li>
+        <li>Deletion is immediate and can't be undone. A copy may remain in the hosting provider's backups for a limited time before it is erased automatically.</li>
+      </ul>
+
+      <h2>Contact</h2>
+      <p>For any question about your privacy or data: <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a></p>
+
+      <h2>Note</h2>
+      <p>The app is a tool for organizing a family budget, not a banking service or financial advice. Don't enter card numbers, passwords, or bank account details in it.</p>
+
+      <h2>Changes to this policy</h2>
+      <p>If this policy changes, we publish the new version on this page with its update date.</p>
+    </main>
+  </body>
+</html>

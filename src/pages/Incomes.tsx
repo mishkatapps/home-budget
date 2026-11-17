@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { dayLabel, moneyExact, todayStr, ymLabel } from '../lib/format';
 import type { Income, IncomeInput } from '../lib/types';
 import { nameOf, useStore } from '../store';
+import { T } from '../lib/i18n';
 
 function IncomeForm({ initial, onClose }: { initial: Income | null; onClose: () => void }) {
   const { run } = useStore();
@@ -83,7 +84,7 @@ function IncomeList() {
                 <div className="grow">
                   <div>{i.source || 'دخل'}</div>
                   <div className="muted small">
-                    {dayLabel(i.received_on)}{i.notes ? ` · ${i.notes}` : ''}{i.created_by ? ` · سجّله ${nameOf(profiles, i.created_by)}` : ''}
+                    {dayLabel(i.received_on)}{i.notes ? ` · ${i.notes}` : ''}{i.created_by ? T(` · سجّله ${nameOf(profiles, i.created_by)}`, ` · by ${nameOf(profiles, i.created_by)}`) : ''}
                   </div>
                 </div>
                 <b className="num">{moneyExact(i.amount)}</b>

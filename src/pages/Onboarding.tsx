@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { LANG, T } from '../lib/i18n';
 import type { Household, Profile, ReentryMember } from '../lib/types';
 
 const PIN_RE = /^\d{4,8}$/;
@@ -183,7 +184,7 @@ export function Onboarding({ me, onDone }: { me: Profile; onDone: () => void }) 
         <h1>مرحباً {me.full_name ?? ''}</h1>
         {error && <p className="error" role="alert">{error}</p>}
 
-        <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.createHousehold(name)); }}>
+        <form className="form block" onSubmit={(e) => { e.preventDefault(); go(() => api.createHousehold(name, LANG)); }}>
           <h2>أسرة جديدة</h2>
           <p className="muted small">تبدأ ميزانية أسرتك وتصبح مديرها، ثم تدعو أفرادها برمز دعوة.</p>
           <input placeholder="اسم الأسرة، مثال: أسرة أحمد" required maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
@@ -223,7 +224,10 @@ export function Pending({ me, onRefresh }: { me: Profile; onRefresh: () => void 
       <div className="login card">
         <h1>في انتظار الموافقة</h1>
         <p>
-          مرحباً {me.full_name}. وصل طلبك{household ? ` إلى «${household.name}»` : ''}، وسيظهر لمدير الأسرة في شاشة الإدارة ليمنحك الصلاحية.
+          {T(
+            `مرحباً ${me.full_name ?? ''}. وصل طلبك${household ? ` إلى «${household.name}»` : ''}، وسيظهر لمدير الأسرة في شاشة الإدارة ليمنحك الصلاحية.`,
+            `Welcome ${me.full_name ?? ''}. Your request reached ${household ? `"${household.name}"` : 'the family'}, and will appear to the family admin on the Admin screen to grant you access.`,
+          )}
         </p>
         {me.anonymous && pinSet && <p className="muted small">إن أغلقت التطبيق أو فتحته من متصفح آخر، ارجع من «الانضمام برمز دعوة» ثم «سبق أن انضممت» برمزك الشخصي.</p>}
         {me.anonymous && !pinSet && (

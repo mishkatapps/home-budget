@@ -2,6 +2,7 @@
 // التشفير يتم على الجهاز قبل أن يغادره الملف: AES-GCM بمفتاح مشتق من كلمة السر (PBKDF2).
 // من لا يعرف كلمة السر لا يستطيع قراءة النسخة، ولا نحن؛ وإن نُسيت كلمة السر فلا سبيل لاسترجاعها.
 import { api } from './api';
+import { EN, T } from './i18n';
 import type { Beneficiary, Category, Income, LegacyExport } from './types';
 
 const MAGIC = 'mishkat-home-budget-backup';
@@ -89,9 +90,11 @@ export async function saveOrShare(blob: Blob, fileName: string): Promise<'shared
 }
 
 // ───── Excel ─────
-const EXPENSE_HEAD = ['التاريخ', 'البند', 'المبلغ', 'المستفيد', 'ملاحظات'];
-const INCOME_HEAD = ['التاريخ', 'المبلغ', 'المصدر', 'ملاحظات'];
-const SHEET_EXPENSES = 'المصروفات', SHEET_INCOMES = 'الدخل', SHEET_HELP = 'تعليمات';
+// أسماء الأوراق والأعمدة بلغة المستخدم؛ والاستيراد يقبل أوراق القالب باللغتين
+const EXPENSE_HEAD = EN ? ['Date', 'Category', 'Amount', 'Beneficiary', 'Notes'] : ['التاريخ', 'البند', 'المبلغ', 'المستفيد', 'ملاحظات'];
+const INCOME_HEAD = EN ? ['Date', 'Amount', 'Source', 'Notes'] : ['التاريخ', 'المبلغ', 'المصدر', 'ملاحظات'];
+const SHEET_EXPENSES = T('المصروفات', 'Expenses'), SHEET_INCOMES = T('الدخل', 'Income'), SHEET_HELP = T('تعليمات', 'Instructions');
+const EXPENSE_SHEETS = ['المصروفات', 'Expenses'], INCOME_SHEETS = ['الدخل', 'Income'];
 const head = (titles: string[]) => titles.map((value) => ({ value, fontWeight: 'bold' as const, backgroundColor: '#D9B15C' }));
 const dateCell = (ymd: string) => ({ value: new Date(ymd + 'T00:00:00Z'), type: Date, format: 'yyyy-mm-dd' });
 
@@ -101,11 +104,22 @@ export async function excelFile(data: LegacyExport | null, categories: string[])
   const today = new Date().toISOString().slice(0, 10);
   const expenses = data
     ? data.expenses.map((e) => [dateCell(e.paid_on), e.category, e.amount, e.beneficiary, e.notes])
-    : [[dateCell(today), categories[0] ?? 'طعام وشراب ونظافة', 250, 'الأسرة', 'مثال: احذف هذا الصف واكتب بياناتك']];
+    : [[dateCell(today), categories[0] ?? T('طعام وشراب ونظافة', 'Food & groceries'), 250, T('الأسرة', 'Family'), T('مثال: احذف هذا الصف واكتب بياناتك', 'Example: delete this row and enter your data')]];
   const incomes = data
     ? data.incomes.map((i) => [dateCell(i.received_on), i.amount, i.source ?? '', i.notes ?? ''])
-    : [[dateCell(today), 8000, 'الراتب', 'مثال: احذف هذا الصف']];
-  const help = [
+    : [[dateCell(today), 8000, T('الراتب', 'Salary'), T('مثال: احذف هذا الصف', 'Example: delete this row')]];
+  const help = EN ? [
+    ['How to fill in the template'],
+    ['1) Write each expense on a row in the "Expenses" sheet and each income on a row in the "Income" sheet. Keep the header row as it is.'],
+    ['2) Dates as year-month-day, e.g. 2026-11-16. Amounts are numbers only, without currency.'],
+    ['3) Category: write it as in the app. New categories are added automatically on import.'],
+    ['4) Beneficiary and notes are optional.'],
+    ['5) In the app: Admin → Backup & import → Import from Excel.'],
+    ['Importing the same file twice does not duplicate its rows.'],
+    [''],
+    ['Current categories:'],
+    ...categories.map((c) => [c]),
+  ] : [
     ['طريقة تعبئة القالب'],
     ['1) اكتب كل مصروف في صف في ورقة «المصروفات»، وكل دخل في صف في ورقة «الدخل». لا تغيّر صف العناوين.'],
     ['2) التاريخ بصيغة سنة-شهر-يوم مثل 2026-11-16. المبلغ رقم فقط بلا عملة.'],
@@ -117,11 +131,11 @@ export async function excelFile(data: LegacyExport | null, categories: string[])
     ['البنود الموجودة الآن:'],
     ...categories.map((c) => [c]),
   ];
-  const sheet = { stickyRowsCount: 1, rightToLeft: true };
+  const sheet = { stickyRowsCount: 1, rightToLeft: !EN };
   return writeExcelFile([
     { data: [head(EXPENSE_HEAD), ...expenses], sheet: SHEET_EXPENSES, columns: [{ width: 14 }, { width: 30 }, { width: 12 }, { width: 16 }, { width: 44 }], ...sheet },
     { data: [head(INCOME_HEAD), ...incomes], sheet: SHEET_INCOMES, columns: [{ width: 14 }, { width: 12 }, { width: 22 }, { width: 44 }], ...sheet },
-    { data: help, sheet: SHEET_HELP, columns: [{ width: 100 }], rightToLeft: true },
+    { data: help, sheet: SHEET_HELP, columns: [{ width: 100 }], rightToLeft: !EN },
   ] as never).toBlob();
 }
 
@@ -152,7 +166,7 @@ export async function readExcel(file: File): Promise<ExcelImport> {
   const { default: readExcelFile } = await import('read-excel-file/browser');
   let sheets: { sheet: string; data: unknown[][] }[];
   try { sheets = (await readExcelFile(file)) as never; } catch { throw new Error('تعذرت قراءة الملف. تأكد أنه ملف Excel بصيغة ‎.xlsx'); }
-  const find = (name: string, index: number) => sheets.find((s) => s.sheet.trim() === name) ?? sheets[index];
+  const find = (names: string[], index: number) => sheets.find((s) => names.includes(s.sheet.trim())) ?? sheets[index];
   const skipped: string[] = [];
   const seen = new Map<string, number>();
   const key = (parts: (string | number)[]) => {
@@ -163,22 +177,22 @@ export async function readExcel(file: File): Promise<ExcelImport> {
   };
   const data: LegacyExport = { categories: [], beneficiaries: [], incomes: [], expenses: [] };
 
-  const exp = find(SHEET_EXPENSES, 0);
+  const exp = find(EXPENSE_SHEETS, 0);
   (exp?.data ?? []).slice(1).forEach((r, i) => {
     if (!r || r.every((c) => text(c) === '')) return;
     const paid_on = toYmd(r[0]), category = text(r[1]), amount = toAmount(r[2]);
-    if (!paid_on || !category || amount == null) { skipped.push(`المصروفات، الصف ${i + 2}: ${!paid_on ? 'تاريخ غير مفهوم' : !category ? 'بلا بند' : 'مبلغ غير صحيح'}`); return; }
+    if (!paid_on || !category || amount == null) { skipped.push(T(`المصروفات، الصف ${i + 2}: ${!paid_on ? 'تاريخ غير مفهوم' : !category ? 'بلا بند' : 'مبلغ غير صحيح'}`, `Expenses, row ${i + 2}: ${!paid_on ? 'unreadable date' : !category ? 'no category' : 'invalid amount'}`)); return; }
     const beneficiary = text(r[3]), notes = text(r[4]);
     if (!data.categories.includes(category)) data.categories.push(category);
     if (beneficiary && !data.beneficiaries.includes(beneficiary)) data.beneficiaries.push(beneficiary);
     data.expenses.push({ legacy_id: key(['E', paid_on, category, amount, beneficiary, notes]), category, amount, paid_on, beneficiary, notes });
   });
 
-  const inc = sheets.find((s) => s.sheet.trim() === SHEET_INCOMES);
+  const inc = sheets.find((s) => INCOME_SHEETS.includes(s.sheet.trim()));
   (inc?.data ?? []).slice(1).forEach((r, i) => {
     if (!r || r.every((c) => text(c) === '')) return;
     const received_on = toYmd(r[0]), amount = toAmount(r[1]);
-    if (!received_on || amount == null) { skipped.push(`الدخل، الصف ${i + 2}: ${!received_on ? 'تاريخ غير مفهوم' : 'مبلغ غير صحيح'}`); return; }
+    if (!received_on || amount == null) { skipped.push(T(`الدخل، الصف ${i + 2}: ${!received_on ? 'تاريخ غير مفهوم' : 'مبلغ غير صحيح'}`, `Income, row ${i + 2}: ${!received_on ? 'unreadable date' : 'invalid amount'}`)); return; }
     const source = text(r[2]), notes = text(r[3]);
     data.incomes.push({ legacy_id: key(['I', received_on, amount, source, notes]), amount, received_on, source, notes });
   });

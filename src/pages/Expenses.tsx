@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { dateTimeLabel, dayLabel, money, moneyExact, monthEnd, monthStart } from '../lib/format';
 import type { Expense } from '../lib/types';
 import { avatarOf, nameOf, useStore } from '../store';
+import { T } from '../lib/i18n';
 
 export default function Expenses({ ym, setYm }: { ym: string; setYm: (ym: string) => void }) {
   const { categories, beneficiaries, profiles, me, isAdmin, canWrite, version } = useStore();
@@ -75,12 +76,12 @@ export default function Expenses({ ym, setYm }: { ym: string; setYm: (ym: string
           </div>
           <ul className="rows">
             {items.map((e) => (
-              <li key={e.id} className={canEdit(e) ? 'clickable' : ''} onClick={() => canEdit(e) && setEditing(e)} title={`سُجّل في ${dateTimeLabel(e.created_at)}`}>
+              <li key={e.id} className={canEdit(e) ? 'clickable' : ''} onClick={() => canEdit(e) && setEditing(e)} title={T(`سُجّل في ${dateTimeLabel(e.created_at)}`, `Recorded ${dateTimeLabel(e.created_at)}`)}>
                 <span className="avatar" aria-hidden="true">{avatarOf(profiles, e.created_by) ?? '·'}</span>
                 <div className="grow">
                   <div>{nameOf(categories, e.category_id)}{e.receipt_path ? ' 📎' : ''}</div>
                   <div className="muted small">
-                    {[e.notes, nameOf(beneficiaries, e.beneficiary_id), e.created_by ? `سجّله ${nameOf(profiles, e.created_by)}` : ''].filter(Boolean).join(' · ')}
+                    {[e.notes, nameOf(beneficiaries, e.beneficiary_id), e.created_by ? T(`سجّله ${nameOf(profiles, e.created_by)}`, `by ${nameOf(profiles, e.created_by)}`) : ''].filter(Boolean).join(' · ')}
                   </div>
                 </div>
                 <b className="num">{moneyExact(e.amount)}</b>

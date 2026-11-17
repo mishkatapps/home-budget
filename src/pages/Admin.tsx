@@ -8,16 +8,17 @@ import type { AppInfo, AuditEntry, LegacyExport, Role } from '../lib/types';
 import { MishkatCredit } from '../components/Brand';
 import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, type PrefKey } from '../lib/prefs';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
+import { EN, LANG, setLang, T } from '../lib/i18n';
 import { AVATARS, budgetOf, nameOf, useStore, type Store } from '../store';
 import Backup from './Backup';
 import Feedback from './Feedback';
 import { PinForm, signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
-  { id: 'admin', label: 'مدير (كل الصلاحيات)' },
-  { id: 'member', label: 'عضو (يسجّل مصروفات)' },
-  { id: 'viewer', label: 'مشاهد فقط' },
-  { id: 'pending', label: 'موقوف / بانتظار الموافقة' },
+  { id: 'admin', label: T('مدير (كل الصلاحيات)', 'Admin (full access)') },
+  { id: 'member', label: T('عضو (يسجّل مصروفات)', 'Member (records expenses)') },
+  { id: 'viewer', label: T('مشاهد فقط', 'Viewer only') },
+  { id: 'pending', label: T('موقوف / بانتظار الموافقة', 'Suspended / waiting for approval') },
 ];
 const roleLabel = (r: Role) => ROLES.find((x) => x.id === r)?.label ?? r;
 const toBudget = (v: string) => (v.trim() === '' || Number(v) <= 0 ? null : Number(v));
@@ -27,7 +28,10 @@ function Invite() {
   const [copied, setCopied] = useState(false);
   if (!household) return null;
   const link = window.location.origin + window.location.pathname;
-  const text = `انضم إلى ميزانية «${household.name}»:\n${link}\nسجّل الدخول ثم اختر «الانضمام إلى أسرة» وأدخل الرمز: ${household.invite_code}`;
+  const text = T(
+    `انضم إلى ميزانية «${household.name}»:\n${link}\nاضغط «الانضمام إلى أسرة برمز دعوة» وأدخل الرمز: ${household.invite_code}`,
+    `Join the "${household.name}" budget:\n${link}?lang=en\nTap "Join a family with an invite code" and enter the code: ${household.invite_code}`,
+  );
 
   async function share() {
     try {
@@ -122,13 +126,24 @@ function NamedList({ title, kind, hint }: { title: string; kind: 'categories' | 
   );
 }
 
-const ACTIONS: Record<string, string> = { insert: 'إضافة', update: 'تعديل', delete: 'حذف', import: 'استيراد' };
-const TABLES: Record<string, string> = { allowances: 'مصروف ممنوح', allowance_grants: 'دفعة مصروف', expenses: 'مصروف', incomes: 'دخل', categories: 'بند', beneficiaries: 'مستفيد', profiles: 'عضو', legacy: 'بيانات أكسيس' };
-const FIELDS: Record<string, string> = {
-  amount: 'المبلغ', paid_on: 'التاريخ', received_on: 'التاريخ', notes: 'ملاحظات', source: 'المصدر', category_id: 'البند',
-  beneficiary_id: 'المستفيد', name: 'الاسم', active: 'مفعّل', monthly_budget: 'الميزانية', role: 'الصلاحية', receipt_path: 'الفاتورة',
-  incomes: 'دخل', expenses: 'مصروفات',
-};
+const ACTIONS: Record<string, string> = EN
+  ? { insert: 'Added', update: 'Edited', delete: 'Deleted', import: 'Imported' }
+  : { insert: 'إضافة', update: 'تعديل', delete: 'حذف', import: 'استيراد' };
+const TABLES: Record<string, string> = EN
+  ? { allowances: 'allowance', allowance_grants: 'allowance installment', expenses: 'expense', incomes: 'income', categories: 'category', beneficiaries: 'beneficiary', profiles: 'member', legacy: 'Access data' }
+  : { allowances: 'مصروف ممنوح', allowance_grants: 'دفعة مصروف', expenses: 'مصروف', incomes: 'دخل', categories: 'بند', beneficiaries: 'مستفيد', profiles: 'عضو', legacy: 'بيانات أكسيس' };
+const FIELDS: Record<string, string> = EN
+  ? {
+    amount: 'Amount', paid_on: 'Date', received_on: 'Date', notes: 'Notes', source: 'Source', category_id: 'Category',
+    beneficiary_id: 'Beneficiary', name: 'Name', active: 'Active', monthly_budget: 'Budget', role: 'Role', receipt_path: 'Receipt',
+    incomes: 'Income', expenses: 'Expenses',
+  }
+  : {
+    amount: 'المبلغ', paid_on: 'التاريخ', received_on: 'التاريخ', notes: 'ملاحظات', source: 'المصدر', category_id: 'البند',
+    beneficiary_id: 'المستفيد', name: 'الاسم', active: 'مفعّل', monthly_budget: 'الميزانية', role: 'الصلاحية', receipt_path: 'الفاتورة',
+    incomes: 'دخل', expenses: 'مصروفات',
+  };
+const SEP = T('، ', ', ');
 
 function describe(a: AuditEntry, s: Store): string {
   const show = (k: string, v: unknown): string => {
@@ -136,7 +151,7 @@ function describe(a: AuditEntry, s: Store): string {
     if (k === 'category_id') return nameOf(s.categories, v as number) || String(v);
     if (k === 'beneficiary_id') return nameOf(s.beneficiaries, v as number) || String(v);
     if (k === 'role') return roleLabel(v as Role);
-    if (k === 'receipt_path') return 'صورة';
+    if (k === 'receipt_path') return T('صورة', 'image');
     if (typeof v === 'number') return moneyExact(v);
     if (typeof v === 'boolean') return v ? 'نعم' : 'لا';
     return String(v);
@@ -145,9 +160,9 @@ function describe(a: AuditEntry, s: Store): string {
   if (a.action === 'update' && a.old_data && a.new_data) {
     const who = a.table_name === 'profiles' ? `${a.new_data.full_name}: ` : '';
     return who + Object.keys(FIELDS).filter((k) => k in a.new_data! && JSON.stringify(a.old_data![k]) !== JSON.stringify(a.new_data![k]))
-      .map((k) => `${FIELDS[k]}: ${show(k, a.old_data![k])} ← ${show(k, a.new_data![k])}`).join('، ');
+      .map((k) => `${FIELDS[k]}: ${show(k, a.old_data![k])} ← ${show(k, a.new_data![k])}`).join(SEP);
   }
-  return Object.keys(FIELDS).filter((k) => row[k] != null && row[k] !== '' && k !== 'active').map((k) => `${FIELDS[k]}: ${show(k, row[k])}`).join('، ');
+  return Object.keys(FIELDS).filter((k) => row[k] != null && row[k] !== '' && k !== 'active').map((k) => `${FIELDS[k]}: ${show(k, row[k])}`).join(SEP);
 }
 
 function AuditLog() {
@@ -199,9 +214,9 @@ function ImportLegacy() {
     await run(async () => {
       const data = JSON.parse(await file.text()) as LegacyExport;
       if (!Array.isArray(data.expenses) || !Array.isArray(data.incomes)) throw new Error('الملف ليس بصيغة التصدير المتوقعة (seed.json).');
-      setStatus(`جارٍ استيراد ${data.expenses.length} مصروف…`);
-      const r = await api.importLegacy(data, (done, total) => setStatus(`جارٍ الاستيراد… ${done} / ${total}`));
-      setStatus(`تم: أُضيف ${r.incomes} دخل و ${r.expenses} مصروف (السجلات الموجودة من قبل لا تتكرر).`);
+      setStatus(T(`جارٍ استيراد ${data.expenses.length} مصروف…`, `Importing ${data.expenses.length} expenses…`));
+      const r = await api.importLegacy(data, (done, total) => setStatus(T(`جارٍ الاستيراد… ${done} / ${total}`, `Importing… ${done} / ${total}`)));
+      setStatus(T(`تم: أُضيف ${r.incomes} دخل و ${r.expenses} مصروف (السجلات الموجودة من قبل لا تتكرر).`, `Done: added ${r.incomes} income and ${r.expenses} expense records (existing records aren't duplicated).`));
     });
     setBusy(false);
   }
@@ -239,8 +254,8 @@ function DangerZone() {
     try { await fn(); window.location.reload(); } catch (e) { setError((e as Error).message); setBusy(false); }
   }
   function deleteAccount() {
-    const extra = isAdmin && others === 0 ? ' أنت الوحيد في الأسرة، فستُحذف الأسرة وكل بياناتها معه.' : '';
-    if (confirm(`حذف حسابك نهائياً؟${extra} لا يمكن التراجع.`)) go(() => api.deleteAccount());
+    const extra = isAdmin && others === 0 ? T(' أنت الوحيد في الأسرة، فستُحذف الأسرة وكل بياناتها معه.', " You're the only one in the family, so the family and all its data will be deleted too.") : '';
+    if (confirm(T(`حذف حسابك نهائياً؟${extra} لا يمكن التراجع.`, `Permanently delete your account?${extra} This can't be undone.`))) go(() => api.deleteAccount());
   }
 
   return (
@@ -251,7 +266,10 @@ function DangerZone() {
           {isAdmin && (
             <>
               <p className="small">
-                <b>حذف الأسرة:</b> يحذف نهائياً كل الدخل والمصروفات والبنود وصور الفواتير وسجل العمليات لـ«{household.name}»، ويُخرج كل أعضائها. لا يمكن التراجع.
+                <b>{T('حذف الأسرة:', 'Delete family:')}</b> {T(
+                  `يحذف نهائياً كل الدخل والمصروفات والبنود وصور الفواتير وسجل العمليات لـ«${household.name}»، ويُخرج كل أعضائها. لا يمكن التراجع.`,
+                  `Permanently deletes all income, expenses, categories, receipt photos, and the activity log of "${household.name}", and removes all its members. This can't be undone.`,
+                )}
               </p>
               <label className="small">للتأكيد اكتب اسم الأسرة: <b>{household.name}</b>
                 <input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
@@ -279,7 +297,7 @@ function Choice<T extends string>({ label, options, value, onPick }: { label: st
       <h3>{label}</h3>
       <div className="segmented" role="radiogroup" aria-label={label}>
         {options.map(([id, text]) => (
-          <button key={id} type="button" role="radio" aria-checked={value === id} className={value === id ? 'on' : ''} onClick={() => onPick(id)}>{text}</button>
+          <button key={id} type="button" role="radio" aria-checked={value === id} className={value === id ? 'on' : ''} onClick={() => onPick(id)} data-noi18n={id === 'ar' || id === 'en' ? '' : undefined}>{text}</button>
         ))}
       </div>
     </>
@@ -294,6 +312,7 @@ function Appearance() {
   return (
     <Section title="المظهر">
       <p className="muted small">هذه الاختيارات تخص هذا الجهاز فقط، ولا تغيّر ما يراه باقي أفراد الأسرة.</p>
+      <Choice label="اللغة" options={[['ar', 'العربية'], ['en', 'English']] as const} value={LANG} onPick={(v) => { if (v !== LANG) setLang(v); }} />
       <Choice label="الوضع" options={[['auto', 'تلقائي (حسب الوقت)'], ['light', '☀️ نهاري'], ['dark', '🌙 ليلي']] as const} value={theme} onPick={(v) => { setThemePref(v); setTheme(v); }} />
       <Choice label="حجم الخط" options={FONT_SIZES} value={prefs.fs} onPick={pick('fs')} />
       <Choice label="نوع الخط" options={FONT_FAMILIES} value={prefs.font} onPick={pick('font')} />
@@ -323,15 +342,21 @@ function Subscription() {
   if (license.licensed) {
     return (
       <Section title="الاشتراك">
-        <p>✅ أسرتك مفعّلة{household.licensed_at ? ` منذ ${household.licensed_at.slice(0, 10)}` : ''}. التفعيل دائم ولا يحتاج تجديداً.</p>
+        <p>✅ {T(
+          `أسرتك مفعّلة${household.licensed_at ? ` منذ ${household.licensed_at.slice(0, 10)}` : ''}. التفعيل دائم ولا يحتاج تجديداً.`,
+          `Your family is activated${household.licensed_at ? ` since ${household.licensed_at.slice(0, 10)}` : ''}. Activation is permanent and never needs renewing.`,
+        )}</p>
       </Section>
     );
   }
   return (
     <Section title="الاشتراك">
       {license.expired
-        ? <p className="error">انتهى الشهر المجاني يوم {household.trial_ends_at.slice(0, 10)}. بياناتكم محفوظة وتظهر للعرض، والتسجيل والتعديل متوقفان حتى التفعيل.</p>
-        : <p>أنتم في الشهر المجاني: باقي <b className="grant-total">{daysLabel(license.daysLeft)}</b> (حتى {household.trial_ends_at.slice(0, 10)}).</p>}
+        ? <p className="error">{T(
+          `انتهى الشهر المجاني يوم ${household.trial_ends_at.slice(0, 10)}. بياناتكم محفوظة وتظهر للعرض، والتسجيل والتعديل متوقفان حتى التفعيل.`,
+          `The free month ended on ${household.trial_ends_at.slice(0, 10)}. Your data is safe and visible, but adding and editing are paused until activation.`,
+        )}</p>
+        : <p>{T('أنتم في الشهر المجاني: باقي ', 'Free month: ')}<b className="grant-total">{daysLabel(license.daysLeft)}</b>{T(` (حتى ${household.trial_ends_at.slice(0, 10)}).`, ` left (until ${household.trial_ends_at.slice(0, 10)}).`)}</p>}
       <p className="small">بعد الشهر المجاني يُفعَّل التطبيق للأسرة كلها بدفعة واحدة، بلا اشتراك شهري.{!pv && info?.price ? <> السعر: <b>{info.price}</b>.</> : null}</p>
       {pv && (
         <div className={`price ${pv.active ? 'on-sale' : ''}`}>
@@ -339,13 +364,13 @@ function Subscription() {
           {pv.active && <s className="num">{money(pv.base)}</s>}
           <strong className="num">{money(pv.final)}</strong> <span>{pv.currency}</span>
           <span className="muted small">تُدفع مرة واحدة</span>
-          {pv.active && <span className="sale-badge">خصم {pv.percent}% حتى {dayLabel(pv.to!)}</span>}
-          {pv.upcoming && <span className="sale-badge soon">خصم {pv.percent}% من {dayLabel(pv.from!)} إلى {dayLabel(pv.to!)}</span>}
+          {pv.active && <span className="sale-badge">{T(`خصم ${pv.percent}% حتى ${dayLabel(pv.to!)}`, `${pv.percent}% off until ${dayLabel(pv.to!)}`)}</span>}
+          {pv.upcoming && <span className="sale-badge soon">{T(`خصم ${pv.percent}% من ${dayLabel(pv.from!)} إلى ${dayLabel(pv.to!)}`, `${pv.percent}% off from ${dayLabel(pv.from!)} to ${dayLabel(pv.to!)}`)}</span>}
         </div>
       )}
       {info?.payment_info && <p className="small pre">{info.payment_info}</p>}
       <InstaPay amount={pv?.final} currency={pv?.currency} />
-      <p className="small">بعد التحويل أرسل صورة التحويل واسم أسرتك «{household.name}» إلى <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a> ليصلك رمز التفعيل.</p>
+      <p className="small">{T(`بعد التحويل أرسل صورة التحويل واسم أسرتك «${household.name}» إلى `, `After transferring, send a screenshot of the transfer and your family name "${household.name}" to `)}<a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a>{T(' ليصلك رمز التفعيل.', ' to receive your activation code.')}</p>
       {isAdmin ? (
         <form className="inline wrap" onSubmit={activate}>
           <input dir="ltr" placeholder="رمز التفعيل MSK-…" required autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -390,7 +415,7 @@ export default function Admin() {
 
         <div className="inline">
           {api.mode === 'cloud' && <button className="btn" onClick={() => signOutWithWarning(me)}>تسجيل الخروج</button>}
-          <a className="small" href="./privacy.html">سياسة الخصوصية</a>
+          <a className="small" href={T('./privacy.html', './privacy-en.html')}>سياسة الخصوصية</a>
         </div>
       </Section>
       <Appearance />

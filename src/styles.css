@@ -142,7 +142,7 @@ input.off { text-decoration: line-through; color: var(--muted); }
 .notice p { margin: 2px 0; }
 .link.start { justify-self: start; text-align: start; }
 
-.login .block { width: 100%; text-align: right; }
+.login .block { width: 100%; text-align: start; }
 .divider { display: flex; align-items: center; gap: 10px; width: 100%; }
 .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 .invite { font: 600 1.25rem/1 ui-monospace, Consolas, monospace; letter-spacing: .12em; background: var(--page); border: 1px dashed var(--axis); border-radius: 10px; padding: 11px 12px; flex: 1; text-align: center; }
@@ -211,7 +211,7 @@ input.off { text-decoration: line-through; color: var(--muted); }
 
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .9rem; }
-th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th, td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
 th { color: var(--ink2); font-weight: 600; }
 
 .chart svg { width: 100%; height: auto; display: block; }
@@ -315,3 +315,8 @@ textarea { font: inherit; color: var(--ink); background: var(--page); border: 1p
 .instapay .btn:not(.primary) { background: #fff; color: #0b1d3f; }
 .instapay .btn.primary { background: #d9b15c; color: #0b1d3f; border-color: #d9b15c; text-decoration: none; }
 .instapay .muted { color: #636b80; }
+
+/* الإنجليزية: الأرقام الكبيرة تبدأ من اليسار */
+html[dir="ltr"] .tile-value { text-align: left; }
+.lang-btn { position: absolute; top: 12px; inset-inline-end: 12px; }
+.login { position: relative; }

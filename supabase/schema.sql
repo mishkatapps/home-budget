@@ -452,7 +452,9 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
 
-create or replace function public.create_household(p_name text) returns uuid
+-- p_lang: لغة من ينشئ الأسرة؛ تُنشأ البنود الافتراضية بها (ar أو en)
+drop function if exists public.create_household(text);
+create or replace function public.create_household(p_name text, p_lang text default 'ar') returns uuid
 language plpgsql security definer set search_path = public as $$
 declare h uuid;
 begin
@@ -464,14 +466,17 @@ begin
   end if;
   perform set_config('app.skip_audit', 'on', true);
   insert into public.households (name, created_by)
-    values (coalesce(nullif(trim(p_name), ''), 'أسرتي'), auth.uid()) returning id into h;
+    values (coalesce(nullif(trim(p_name), ''), case when p_lang = 'en' then 'My family' else 'أسرتي' end), auth.uid()) returning id into h;
   update public.profiles set household_id = h, role = 'admin' where id = auth.uid();
   insert into public.categories (household_id, name)
-    select h, x from unnest(array[
+    select h, x from unnest(case when p_lang = 'en' then array[
+      'Food & groceries', 'Household supplies & appliances', 'Bills (electricity, gas, water)', 'Phone & internet',
+      'Transport & car', 'Medical & medicine', 'Education', 'Clothing', 'Rent or installments', 'Zakat & charity', 'Gifts & occasions', 'Leisure & outings', 'Other'
+    ] else array[
       'طعام وشراب ونظافة', 'مستلزمات منزلية وأجهزة', 'فواتير (كهرباء، غاز، مياه)', 'تليفون وإنترنت',
       'مواصلات وسيارة', 'علاج وأدوية', 'تعليم', 'ملابس', 'إيجار أو قسط', 'زكاة وصدقات', 'مجاملات وهدايا', 'ترفيه وخروجات', 'أخرى'
-    ]) x;
-  insert into public.beneficiaries (household_id, name) values (h, 'الأسرة');
+    ] end) x;
+  insert into public.beneficiaries (household_id, name) values (h, case when p_lang = 'en' then 'Family' else 'الأسرة' end);
   perform set_config('app.skip_audit', 'off', true);
   return h;
 end $$;
@@ -721,12 +726,12 @@ end $$;
 
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
+  public.create_household(text, text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
   public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text), public.is_app_owner(), public.set_pricing(numeric, numeric, date, date, text, text)
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
-  public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
+  public.create_household(text, text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
   public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text), public.is_app_owner(), public.set_pricing(numeric, numeric, date, date, text, text)
   to authenticated;
 

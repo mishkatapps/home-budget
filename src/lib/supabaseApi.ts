@@ -89,7 +89,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
       const { data, error } = await sb.from('households').select('id,name,invite_code,trial_ends_at,licensed_at').maybeSingle();
       return error ? null : (data as Household | null); // الخطأ هنا يعني مخططاً قديماً بلا جدول أسر
     },
-    async createHousehold(name) { check(await sb.rpc('create_household', { p_name: name })); },
+    async createHousehold(name, lang) { check(await sb.rpc('create_household', { p_name: name, p_lang: lang ?? 'ar' })); },
     async signInAnonymously() {
       const { error } = await sb.auth.signInAnonymously();
       if (error) throw new Error(/disabled/i.test(error.message) ? 'الانضمام بالرمز بلا حساب غير مفعّل على الخادم بعد.' : error.message);

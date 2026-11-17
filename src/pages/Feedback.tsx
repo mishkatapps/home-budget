@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Section } from '../components/ui';
 import { useStore } from '../store';
+import { LANG, T } from '../lib/i18n';
 
 /**
  * التقييمات تُرسل إلى نفس جدول Google الذي تستقبل فيه مشكاة تقييمات تطبيقاتها (عبر Google Apps Script)،
@@ -39,7 +40,7 @@ export default function Feedback() {
     setError(null);
     setState('sending');
     const body = new URLSearchParams({
-      app: 'ميزانية البيت', ver: __APP_VERSION__, platform: platformName(), lang: 'ar',
+      app: 'ميزانية البيت', ver: __APP_VERSION__, platform: platformName(), lang: LANG,
       stars: String(stars), text: text.trim(), name: name.trim(), contact: contact.trim(), device: deviceId(),
     });
     try {
@@ -66,7 +67,7 @@ export default function Feedback() {
       <form className="form" onSubmit={send}>
         <div className="rate-stars" role="radiogroup" aria-label="التقييم">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} type="button" role="radio" aria-checked={stars === n} aria-label={`${n} من 5`} className={n <= stars ? 'on' : ''} onClick={() => setStars(n)}>★</button>
+            <button key={n} type="button" role="radio" aria-checked={stars === n} aria-label={T(`${n} من 5`, `${n} of 5`)} className={n <= stars ? 'on' : ''} onClick={() => setStars(n)}>★</button>
           ))}
           <span className="muted small">{stars ? LABELS[stars] : 'اضغط على النجوم'}</span>
         </div>

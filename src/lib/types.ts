@@ -157,7 +157,8 @@ export interface Api {
   signOut(): Promise<void>;
 
   getHousehold(): Promise<Household | null>;
-  createHousehold(name: string): Promise<void>;
+  /** lang: لغة البنود الافتراضية للأسرة الجديدة */
+  createHousehold(name: string, lang?: string): Promise<void>;
   /** دخول بلا حساب لفرد الأسرة الذي سينضم برمز الدعوة */
   signInAnonymously(): Promise<void>;
   joinHousehold(code: string, name?: string): Promise<void>;

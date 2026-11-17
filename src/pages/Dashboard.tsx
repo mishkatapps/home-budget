@@ -6,6 +6,7 @@ import { currentYm, daysInMonth, money, moneyExact, shiftYm, todayStr, ymLabel }
 import { balanceUpTo, groupSum, monthTotals, sortedEntries } from '../lib/stats';
 import type { Profile } from '../lib/types';
 import { budgetOf, nameOf, useStore } from '../store';
+import { T } from '../lib/i18n';
 
 const label = (p: Profile) => `${p.avatar ? p.avatar + ' ' : ''}${p.full_name ?? p.email ?? ''}`;
 
@@ -165,7 +166,9 @@ export default function Dashboard({ ym, setYm }: { ym: string; setYm: (ym: strin
         return (
           <div className="alert" role="alert" key={p.id}>
             <span>
-              ⚠ {p.id === me.id ? 'تجاوزتَ مصروفك' : `${label(p)} تجاوز مصروفه`} في {ymLabel(ym)} بمبلغ <b className="num">{money(by)}</b>.{' '}
+              ⚠ {p.id === me.id
+                ? T(`تجاوزتَ مصروفك في ${ymLabel(ym)} بمبلغ `, `You've exceeded your allowance for ${ymLabel(ym)} by `)
+                : T(`${label(p)} تجاوز مصروفه في ${ymLabel(ym)} بمبلغ `, `${label(p)} exceeded their allowance for ${ymLabel(ym)} by `)}<b className="num">{money(by)}</b>.{' '}
               {!isAdmin ? 'اطلب من مدير الأسرة دفعة مصروف جديدة.' : p.id === me.id ? 'خصّص لنفسك دفعة مصروف جديدة.' : 'خصّص له دفعة مصروف جديدة.'}
             </span>
             {isAdmin && <button className="btn small-btn" onClick={() => document.getElementById(privateId)?.scrollIntoView({ behavior: 'smooth' })}>منح مصروف</button>}
@@ -182,17 +185,17 @@ export default function Dashboard({ ym, setYm }: { ym: string; setYm: (ym: strin
         <Tile
           label="مصروف الشهر"
           value={money(spent)}
-          hint={spentDelta != null ? `${spentDelta >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(spentDelta))}% عن ${ymLabel(prevYm)}` : undefined}
+          hint={spentDelta != null ? `${spentDelta >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(spentDelta))}% ${T('عن', 'vs')} ${ymLabel(prevYm)}` : undefined}
         />
         {budget > 0 && (
           <Tile
             label={remaining < 0 ? 'تجاوز الميزانية' : 'المتبقي من الميزانية'}
             value={money(Math.abs(remaining))}
             tone={remaining < 0 ? 'bad' : 'good'}
-            hint={`صُرف ${Math.round((spent / budget) * 100)}% من الميزانية`}
+            hint={T(`صُرف ${Math.round((spent / budget) * 100)}% من الميزانية`, `${Math.round((spent / budget) * 100)}% of budget spent`)}
           />
         )}
-        <Tile label="عدد العمليات" value={String(rows.reduce((s, r) => s + r.n, 0))} hint={`متوسط يومي ${money(dailyAvg)}`} />
+        <Tile label="عدد العمليات" value={String(rows.reduce((s, r) => s + r.n, 0))} hint={T(`متوسط يومي ${money(dailyAvg)}`, `Daily average ${money(dailyAvg)}`)} />
       </div>
 
       {members.length > 0 && (

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { biometricAvailable, clearLock, enrollBiometric, hasBiometric, hasLock, setPin, verifyBiometric, verifyPin } from '../lib/lock';
 import { useStore } from '../store';
+import { T } from '../lib/i18n';
 
 const PIN_RE = /^\d{4,8}$/;
 
@@ -50,7 +51,7 @@ export function UnlockForm({ onDone }: { onDone?: () => void }) {
 
   async function byPin(e: React.FormEvent) {
     e.preventDefault();
-    if (Date.now() < waitUntil) return setError(`انتظر ${Math.ceil((waitUntil - Date.now()) / 1000)} ثانية ثم حاول.`);
+    if (Date.now() < waitUntil) return setError(T(`انتظر ${Math.ceil((waitUntil - Date.now()) / 1000)} ثانية ثم حاول.`, `Wait ${Math.ceil((waitUntil - Date.now()) / 1000)} seconds and try again.`));
     setBusy(true);
     if (await verifyPin(me.id, pin)) { setFails(0); await open(); }
     else {

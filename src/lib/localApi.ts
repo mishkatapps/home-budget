@@ -1,11 +1,12 @@
 // الوضع التجريبي: كل البيانات في ذاكرة المتصفح على هذا الجهاز فقط.
 // يقرأ public/local/seed.json (ناتج scripts/export-access.ps1) إن وُجد.
+import { T } from './i18n';
 import type {
   Api, AuditEntry, Beneficiary, BudgetRow, Category, Expense, Grant, Income, LegacyExport, Profile, SummaryRow,
 } from './types';
 
 const ADMIN: Profile = {
-  id: 'local-admin', email: 'admin@local', full_name: 'مدير الأسرة (تجريبي)', avatar_url: null,
+  id: 'local-admin', email: 'admin@local', full_name: T('مدير الأسرة (تجريبي)', 'Family admin (demo)'), avatar_url: null,
   role: 'admin', household_id: 'local', monthly_budget: null, created_at: new Date().toISOString(),
 };
 
@@ -33,8 +34,8 @@ function emptyDb(): Db {
   return {
     profiles: [
       ADMIN,
-      { id: 'local-member', email: 'member@local', full_name: 'عضو تجريبي', avatar_url: null, role: 'member', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
-      { id: 'local-pending', email: 'new@local', full_name: 'عضو ينتظر الموافقة', avatar_url: null, role: 'pending', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
+      { id: 'local-member', email: 'member@local', full_name: T('عضو تجريبي', 'Demo member'), avatar_url: null, role: 'member', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
+      { id: 'local-pending', email: 'new@local', full_name: T('عضو ينتظر الموافقة', 'Member awaiting approval'), avatar_url: null, role: 'pending', household_id: 'local', monthly_budget: null, created_at: ADMIN.created_at },
     ],
     categories: [], beneficiaries: [], incomes: [], expenses: [], audit: [], seq: 1,
   };
@@ -109,7 +110,7 @@ export const localApi: Api = {
   async signIn() {},
   async signOut() {},
 
-  async getHousehold() { return { id: 'local', name: 'أسرة تجريبية', invite_code: 'LOCAL12345', trial_ends_at: new Date(Date.now() + 12 * 864e5).toISOString(), licensed_at: null }; },
+  async getHousehold() { return { id: 'local', name: T('أسرة تجريبية', 'Demo family'), invite_code: 'LOCAL12345', trial_ends_at: new Date(Date.now() + 12 * 864e5).toISOString(), licensed_at: null }; },
   async createHousehold() {},
   async signInAnonymously() {},
   async joinHousehold() {},

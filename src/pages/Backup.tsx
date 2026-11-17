@@ -5,6 +5,7 @@ import { collect, decryptBackup, encryptBackup, excelFile, readExcel, saveOrShar
 import { todayStr } from '../lib/format';
 import type { LegacyExport } from '../lib/types';
 import { useStore } from '../store';
+import { T } from '../lib/i18n';
 
 /** النسخ الاحتياطي المشفّر (للحفظ في Google Drive أو غيره) والتصدير والاستيراد عبر Excel — لمدير الأسرة */
 export default function Backup() {
@@ -30,11 +31,14 @@ export default function Backup() {
   async function importData(data: LegacyExport): Promise<string> {
     let result = { incomes: 0, expenses: 0 };
     const ok = await run(async () => {
-      result = await api.importLegacy(data, (done, total) => setStatus(`جارٍ الاستيراد… ${done} / ${total}`));
+      result = await api.importLegacy(data, (done, total) => setStatus(T(`جارٍ الاستيراد… ${done} / ${total}`, `Importing… ${done} / ${total}`)));
     });
     if (!ok) throw new Error('لم يكتمل الاستيراد.');
     const skippedRows = data.expenses.length + data.incomes.length - result.expenses - result.incomes;
-    return `تم: أُضيف ${result.expenses} مصروف و ${result.incomes} دخل.${skippedRows > 0 ? ` ${skippedRows} صف موجود من قبل فلم يتكرر.` : ''}`;
+    return T(
+      `تم: أُضيف ${result.expenses} مصروف و ${result.incomes} دخل.${skippedRows > 0 ? ` ${skippedRows} صف موجود من قبل فلم يتكرر.` : ''}`,
+      `Done: added ${result.expenses} expenses and ${result.incomes} income records.${skippedRows > 0 ? ` ${skippedRows} rows already existed and were not duplicated.` : ''}`,
+    );
   }
 
   function backup(e: React.FormEvent) {
@@ -43,9 +47,12 @@ export default function Backup() {
     if (pw !== pw2) return setStatus('⚠ كلمتا السر غير متطابقتين.');
     task('جارٍ تجهيز النسخة وتشفيرها…', async () => {
       const data = await collect(categories, beneficiaries, incomes);
-      const how = await saveOrShare(await encryptBackup(data, pw, name), `ميزانية-البيت-${stamp}.mbk`);
+      const how = await saveOrShare(await encryptBackup(data, pw, name), T(`ميزانية-البيت-${stamp}.mbk`, `home-budget-${stamp}.mbk`));
       setPw(''); setPw2('');
-      return `${how === 'shared' ? 'تمت المشاركة' : 'نُزِّل الملف'}: ${data.expenses.length} مصروف و ${data.incomes.length} دخل، مشفّرة بكلمة السر.${how === 'downloaded' ? ' ارفعه إلى Google Drive لحفظه.' : ''}`;
+      return T(
+        `${how === 'shared' ? 'تمت المشاركة' : 'نُزِّل الملف'}: ${data.expenses.length} مصروف و ${data.incomes.length} دخل، مشفّرة بكلمة السر.${how === 'downloaded' ? ' ارفعه إلى Google Drive لحفظه.' : ''}`,
+        `${how === 'shared' ? 'Shared' : 'Downloaded'}: ${data.expenses.length} expenses and ${data.incomes.length} income records, encrypted with your password.${how === 'downloaded' ? ' Upload it to Google Drive to keep it.' : ''}`,
+      );
     });
   }
 
@@ -61,12 +68,12 @@ export default function Backup() {
 
   const exportExcel = () => task('جارٍ تجهيز ملف Excel…', async () => {
     const data = await collect(categories, beneficiaries, incomes);
-    await saveOrShare(await excelFile(data, categories.map((c) => c.name)), `ميزانية-البيت-${stamp}.xlsx`);
-    return `صُدِّر ${data.expenses.length} مصروف و ${data.incomes.length} دخل إلى Excel. هذا الملف غير مشفّر.`;
+    await saveOrShare(await excelFile(data, categories.map((c) => c.name)), T(`ميزانية-البيت-${stamp}.xlsx`, `home-budget-${stamp}.xlsx`));
+    return T(`صُدِّر ${data.expenses.length} مصروف و ${data.incomes.length} دخل إلى Excel. هذا الملف غير مشفّر.`, `Exported ${data.expenses.length} expenses and ${data.incomes.length} income records to Excel. This file is not encrypted.`);
   });
 
   const template = () => task('جارٍ تجهيز القالب…', async () => {
-    await saveOrShare(await excelFile(null, categories.filter((c) => c.active).map((c) => c.name)), 'قالب-ميزانية-البيت.xlsx');
+    await saveOrShare(await excelFile(null, categories.filter((c) => c.active).map((c) => c.name)), T('قالب-ميزانية-البيت.xlsx', 'home-budget-template.xlsx'));
     return 'نُزِّل القالب. املأه ثم استورده من الزر المجاور.';
   });
 
@@ -74,7 +81,7 @@ export default function Backup() {
     const { data, skipped } = await readExcel(file);
     if (!data.expenses.length && !data.incomes.length) throw new Error('لا توجد صفوف صالحة في الملف.' + (skipped.length ? ' ' + skipped.slice(0, 3).join('؛ ') : ''));
     const msg = await importData(data);
-    return msg + (skipped.length ? ` تُخطّي ${skipped.length} صف: ${skipped.slice(0, 3).join('؛ ')}${skipped.length > 3 ? '…' : ''}` : '');
+    return msg + (skipped.length ? T(` تُخطّي ${skipped.length} صف: ${skipped.slice(0, 3).join('؛ ')}${skipped.length > 3 ? '…' : ''}`, ` Skipped ${skipped.length} rows: ${skipped.slice(0, 3).join('; ')}${skipped.length > 3 ? '…' : ''}`) : '');
   });
 
   return (

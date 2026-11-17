@@ -1,15 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import { currentYm, money, shiftYm, ymLabel } from '../lib/format';
+import { EN, T } from '../lib/i18n';
 
 export function MonthNav({ ym, setYm }: { ym: string; setYm: (ym: string) => void }) {
   return (
     <div className="monthnav">
-      <button className="btn icon" onClick={() => setYm(shiftYm(ym, -1))} aria-label="الشهر السابق">›</button>
+      <button className="btn icon" onClick={() => setYm(shiftYm(ym, -1))} aria-label="الشهر السابق">{EN ? '‹' : '›'}</button>
       <div className="monthnav-label">
         <strong>{ymLabel(ym)}</strong>
         {ym !== currentYm() && <button className="link small" onClick={() => setYm(currentYm())}>الشهر الحالي</button>}
       </div>
-      <button className="btn icon" onClick={() => setYm(shiftYm(ym, 1))} aria-label="الشهر التالي">‹</button>
+      <button className="btn icon" onClick={() => setYm(shiftYm(ym, 1))} aria-label="الشهر التالي">{EN ? '›' : '‹'}</button>
     </div>
   );
 }
@@ -44,7 +45,7 @@ export function HBars({ rows, limit = 8 }: { rows: { label: string; value: numbe
         </div>
       ))}
       {rows.length > limit && (
-        <button className="link" onClick={() => setAll(!all)}>{all ? 'عرض أقل' : `عرض الكل (${rows.length})`}</button>
+        <button className="link" onClick={() => setAll(!all)}>{all ? 'عرض أقل' : T(`عرض الكل (${rows.length})`, `Show all (${rows.length})`)}</button>
       )}
     </div>
   );
@@ -54,7 +55,7 @@ export function HBars({ rows, limit = 8 }: { rows: { label: string; value: numbe
 export function Meter({ label, spent, budget }: { label: string; spent: number; budget: number }) {
   const ratio = budget > 0 ? spent / budget : 0;
   const state = ratio > 1 ? 'over' : ratio > 0.85 ? 'warn' : 'ok';
-  const text = ratio > 1 ? `⚠ تجاوز بـ ${money(spent - budget)}` : `متبقي ${money(budget - spent)}`;
+  const text = ratio > 1 ? T(`⚠ تجاوز بـ ${money(spent - budget)}`, `⚠ Over by ${money(spent - budget)}`) : T(`متبقي ${money(budget - spent)}`, `${money(budget - spent)} left`);
   return (
     <div className="hbar">
       <div className="hbar-head">

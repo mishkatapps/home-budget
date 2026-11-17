@@ -4,6 +4,7 @@ import { HBars, Section, Tile } from '../components/ui';
 import { currentYm, money, shiftYm, ymLabel } from '../lib/format';
 import { groupSum, monthTotals, sortedEntries, type MonthTotals } from '../lib/stats';
 import { nameOf, useStore } from '../store';
+import { T } from '../lib/i18n';
 
 export default function Stats() {
   const { summary, incomes, categories, beneficiaries, isAdmin } = useStore();
@@ -48,14 +49,14 @@ export default function Stats() {
 
       <div className="tiles">
         <Tile label="إجمالي المصروف" value={money(spent)} />
-        <Tile label="متوسط الصرف الشهري" value={money(spent / active)} hint={`على ${active} ${active === 1 ? 'شهر' : 'شهور'} فيها صرف`} />
+        <Tile label="متوسط الصرف الشهري" value={money(spent / active)} hint={T(`على ${active} ${active === 1 ? 'شهر' : 'شهور'} فيها صرف`, `over ${active} ${active === 1 ? 'month' : 'months'} with spending`)} />
         <Tile label="أعلى شهر صرفاً" value={money(top.spent)} hint={top.spent > 0 ? ymLabel(top.ym) : undefined} />
         {showIncome ? (
           <Tile
             label="دخلي ناقص المصروف"
             value={money(income - spent)}
             tone={income - spent < 0 ? 'bad' : 'good'}
-            hint={`دخلي ${money(income)}`}
+            hint={T(`دخلي ${money(income)}`, `My income ${money(income)}`)}
           />
         ) : (
           <Tile label="عدد العمليات" value={String(rows.reduce((s, r) => s + r.n, 0))} />
@@ -71,7 +72,7 @@ export default function Stats() {
         <HBars
           limit={10}
           rows={sortedEntries(groupSum(rows, (r) => r.category_id)).map(([id, value]) => ({
-            label: nameOf(categories, id) || 'غير مصنف', value, note: `متوسط شهري ${money(value / active)}`,
+            label: nameOf(categories, id) || 'غير مصنف', value, note: T(`متوسط شهري ${money(value / active)}`, `Monthly average ${money(value / active)}`),
           }))}
         />
       </Section>

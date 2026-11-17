@@ -4,6 +4,7 @@ import { currentYm, daysLabel } from './lib/format';
 import type { BudgetRow, Beneficiary, Category, Grant, Household, Income, Profile, SummaryRow } from './lib/types';
 import { licenseOf, StoreContext, type Store } from './store';
 import { MishkatCredit } from './components/Brand';
+import { EN, setLang, T } from './lib/i18n';
 import Scene, { Backdrop, type SceneName } from './components/Scene';
 import Dashboard from './pages/Dashboard';
 import Expenses from './pages/Expenses';
@@ -117,6 +118,7 @@ export default function App() {
       <div className="center">
         <div className="login card">
           <img src="./icon.svg" alt="" width={72} height={72} />
+          <button type="button" className="btn lang-btn" data-noi18n onClick={() => setLang(EN ? 'ar' : 'en')}>{EN ? 'العربية' : 'English'}</button>
           <h1>ميزانية البيت</h1>
           <MishkatCredit />
           <p className="muted">سجّل الدخل والمصروفات وتابع ميزانية الأسرة</p>
@@ -133,7 +135,7 @@ export default function App() {
           {appleEnabled && (
             <button className="btn block" onClick={() => api.signIn('apple').catch((e) => setError(e.message))}>الدخول بحساب آبل</button>
           )}
-          <a className="muted small" href="./privacy.html">سياسة الخصوصية</a>
+          <a className="muted small" href={T('./privacy.html', './privacy-en.html')}>سياسة الخصوصية</a>
         </div>
       </div>
     );

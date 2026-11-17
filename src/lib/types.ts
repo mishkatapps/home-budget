@@ -36,8 +36,14 @@ export interface ReentryMember {
 
 /** ما يعرضه التطبيق في شاشة التفعيل (يضبطه صاحب التطبيق في القاعدة) */
 export interface AppInfo {
-  price: string | null;
+  /** نص سعر قديم (قبل التحكم من صفحة الإدارة) */
+  price?: string | null;
   payment_info: string | null;
+  base_price?: number | null;
+  currency?: string | null;
+  discount_percent?: number | null;
+  discount_from?: string | null;
+  discount_to?: string | null;
 }
 
 /** ميزانية عضو في شهر = مجموع دفعات كل المديرين + ما رُحِّل من الشهر السابق */

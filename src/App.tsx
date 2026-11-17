@@ -10,7 +10,7 @@ import Expenses from './pages/Expenses';
 import Incomes from './pages/Incomes';
 import Stats from './pages/Stats';
 import Admin from './pages/Admin';
-import { Onboarding, Pending } from './pages/Onboarding';
+import { Onboarding, Pending, rememberMember } from './pages/Onboarding';
 
 type Tab = SceneName;
 const TABS: { id: Tab; label: string; icon: string; adminOnly?: boolean }[] = [
@@ -64,6 +64,13 @@ export default function App() {
     if (unlocked.current) setIncomes(await api.listIncomes());
     setVersion((v) => v + 1);
   }, []);
+
+  // العضو المنضم بلا حساب: نحفظ رمز أسرته على الجهاز ليعود بعد الخروج برمزه الشخصي فقط
+  useEffect(() => {
+    if (me?.anonymous && data?.household?.invite_code && me.role !== 'pending') {
+      rememberMember(data.household.invite_code, data.profiles.find((p) => p.id === me.id)?.full_name ?? me.full_name);
+    }
+  }, [me, data]);
 
   const lockIncome = useCallback(() => { unlocked.current = false; setIncomes(null); }, []);
 

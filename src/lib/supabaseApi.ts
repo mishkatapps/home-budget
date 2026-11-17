@@ -132,7 +132,7 @@ export function createSupabaseApi(url: string, anonKey: string): Api {
     async carryOver(memberId, ym, approve) { check(await sb.rpc('carry_over', { p_member: memberId, p_ym: ym, p_approve: approve })); },
     async setMyAvatar(avatar) { check(await sb.rpc('set_my_avatar', { p_avatar: avatar })); },
     async getAppInfo() {
-      const { data, error } = await sb.from('app_info').select('price,payment_info').maybeSingle();
+      const { data, error } = await sb.from('app_info').select('*').maybeSingle(); // كل الأعمدة: تعمل مع المخطط القديم والجديد
       return error ? null : (data as AppInfo | null);
     },
     async redeemLicense(code) { check(await sb.rpc('redeem_license', { p_code: code })); },

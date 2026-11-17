@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Section } from '../components/ui';
 import { api, importEnabled } from '../lib/api';
-import { currentYm, dateTimeLabel, daysLabel, money, moneyExact } from '../lib/format';
+import { currentYm, dateTimeLabel, dayLabel, daysLabel, money, moneyExact } from '../lib/format';
+import { priceView } from '../lib/pricing';
 import type { AppInfo, AuditEntry, LegacyExport, Role } from '../lib/types';
 import { MishkatCredit } from '../components/Brand';
 import { BACKGROUNDS, FONT_FAMILIES, FONT_SIZES, getPref, PALETTES, setPref, type PrefKey } from '../lib/prefs';
 import { getThemePref, setThemePref, type ThemePref } from '../lib/theme';
 import { AVATARS, budgetOf, nameOf, useStore, type Store } from '../store';
 import Backup from './Backup';
+import Feedback from './Feedback';
 import { PinForm, signOutWithWarning } from './Onboarding';
 
 const ROLES: { id: Role; label: string }[] = [
@@ -308,6 +310,7 @@ function Subscription() {
   const [busy, setBusy] = useState(false);
   useEffect(() => { if (!license.licensed) api.getAppInfo().then(setInfo).catch(() => {}); }, [license.licensed]);
   if (!household?.trial_ends_at) return null; // مخطط قديم بلا بيانات اشتراك
+  const pv = priceView(info);
 
   async function activate(e: React.FormEvent) {
     e.preventDefault();
@@ -328,7 +331,17 @@ function Subscription() {
       {license.expired
         ? <p className="error">انتهى الشهر المجاني يوم {household.trial_ends_at.slice(0, 10)}. بياناتكم محفوظة وتظهر للعرض، والتسجيل والتعديل متوقفان حتى التفعيل.</p>
         : <p>أنتم في الشهر المجاني: باقي <b className="grant-total">{daysLabel(license.daysLeft)}</b> (حتى {household.trial_ends_at.slice(0, 10)}).</p>}
-      <p className="small">بعد الشهر المجاني يُفعَّل التطبيق للأسرة كلها بدفعة واحدة، بلا اشتراك شهري.{info?.price ? <> السعر: <b>{info.price}</b>.</> : null}</p>
+      <p className="small">بعد الشهر المجاني يُفعَّل التطبيق للأسرة كلها بدفعة واحدة، بلا اشتراك شهري.{!pv && info?.price ? <> السعر: <b>{info.price}</b>.</> : null}</p>
+      {pv && (
+        <div className={`price ${pv.active ? 'on-sale' : ''}`}>
+          <span className="muted small">السعر</span>
+          {pv.active && <s className="num">{money(pv.base)}</s>}
+          <strong className="num">{money(pv.final)}</strong> <span>{pv.currency}</span>
+          <span className="muted small">تُدفع مرة واحدة</span>
+          {pv.active && <span className="sale-badge">خصم {pv.percent}% حتى {dayLabel(pv.to!)}</span>}
+          {pv.upcoming && <span className="sale-badge soon">خصم {pv.percent}% من {dayLabel(pv.from!)} إلى {dayLabel(pv.to!)}</span>}
+        </div>
+      )}
       {info?.payment_info && <p className="small pre">{info.payment_info}</p>}
       <p className="small">للحصول على رمز التفعيل راسل مشكاة: <a href="mailto:mishkatapps@gmail.com">mishkatapps@gmail.com</a></p>
       {isAdmin ? (
@@ -342,7 +355,7 @@ function Subscription() {
 }
 
 export default function Admin() {
-  const { me, isAdmin, reload, budgets, run, pinSet } = useStore();
+  const { me, isAdmin, reload, budgets, run, pinSet, household } = useStore();
   const myBudget = budgetOf(budgets, currentYm(), me.id);
   // عند فتح الإدارة نجلب أحدث البيانات حتى تظهر طلبات الانضمام الجديدة دون إعادة تحميل الصفحة
   useEffect(() => { reload().catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -354,6 +367,9 @@ export default function Admin() {
           ? (
             <>
               <p className="muted small">منضم بالرمز بلا حساب جوجل: دخولك محفوظ في هذا المتصفح. إن خرجت أو غيّرت الهاتف تعود من «الانضمام برمز دعوة» ← «سبق أن انضممت» برمز الدعوة ورمزك الشخصي.</p>
+              {household && (
+                <p className="small">رمز أسرتك: <code className="invite inline-code" dir="ltr">{household.invite_code}</code> احفظه مع رمزك الشخصي؛ تحتاجهما معاً للدخول من جهاز آخر.</p>
+              )}
               <h3>{pinSet ? 'تغيير رمزي الشخصي' : 'رمزي الشخصي (لم يُضبط بعد)'}</h3>
               <PinForm onDone={() => reload().catch(() => {})} submitLabel={pinSet ? 'تغيير الرمز الشخصي' : 'حفظ الرمز الشخصي'} />
             </>
@@ -377,6 +393,7 @@ export default function Admin() {
       </Section>
       <Appearance />
       <Subscription />
+      <Feedback />
       {isAdmin && (
         <>
           <Invite />

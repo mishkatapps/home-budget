@@ -284,3 +284,19 @@ h3 { font-size: .98rem; margin: 14px 0 4px; }
 p.muted.small { font-weight: 700; }
 
 .segmented.block { width: 100%; }
+
+/* السعر والخصم في قسم الاشتراك */
+.price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 10px 0; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--gold) 14%, var(--surface)); border: 1px solid var(--line); }
+.price strong { font-size: 1.8rem; color: var(--ink); }
+.price s { color: var(--muted); font-size: 1.1rem; }
+.price.on-sale strong { color: var(--good); }
+.sale-badge { background: var(--bad); color: #fff; border-radius: 99px; padding: 2px 12px; font-size: .85rem; font-weight: 700; }
+.sale-badge.soon { background: var(--accent); color: var(--accent-ink); }
+
+/* نجوم التقييم */
+.rate-stars { display: flex; align-items: center; gap: 4px; }
+.rate-stars button { font-size: 2rem; line-height: 1; background: none; border: 0; color: var(--track); cursor: pointer; padding: 2px; }
+.rate-stars button.on { color: #f2b630; }
+.rate-stars .muted { margin-inline-start: 8px; }
+textarea { font: inherit; color: var(--ink); background: var(--page); border: 1px solid var(--axis); border-radius: 10px; padding: 8px 10px; width: 100%; resize: vertical; }
+.invite.inline-code { display: inline-block; flex: none; padding: 4px 10px; font-size: 1rem; }

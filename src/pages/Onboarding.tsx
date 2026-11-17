@@ -10,6 +10,15 @@ export function signOutWithWarning(me: Profile) {
   api.signOut();
 }
 
+/** رمز الأسرة واسم العضو يُحفظان على الجهاز: بعد الخروج يعود العضو برمزه الشخصي فقط */
+const INVITE_KEY = 'memberReturn';
+export function rememberMember(code: string, name: string | null) {
+  try { localStorage.setItem(INVITE_KEY, JSON.stringify({ code: code.trim().toUpperCase(), name: name ?? '' })); } catch { /* تخزين محجوب */ }
+}
+function savedMember(): { code: string; name: string } | null {
+  try { const v = JSON.parse(localStorage.getItem(INVITE_KEY) ?? 'null'); return v?.code ? v : null; } catch { return null; }
+}
+
 /** نطلب من المتصفح ألا يمسح بيانات التطبيق تلقائياً (يقلل ضياع دخول العضو) */
 function keepStorage() {
   try { navigator.storage?.persist?.(); } catch { /* غير مدعوم */ }
@@ -43,31 +52,41 @@ export function PinForm({ onDone, submitLabel = 'حفظ الرمز الشخصي'
 
 /** عضو سبق انضمامه بلا حساب وضاع دخوله: رمز دعوة الأسرة ← يختار اسمه ← رمزه الشخصي */
 function Reentry({ onDone }: { onDone: () => void }) {
-  const [code, setCode] = useState('');
+  const saved = savedMember();
+  const [code, setCode] = useState(saved?.code ?? '');
   const [members, setMembers] = useState<ReentryMember[] | null>(null);
   const [memberId, setMemberId] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function find(e: React.FormEvent) {
-    e.preventDefault();
+  async function find(e?: React.FormEvent) {
+    e?.preventDefault();
     setBusy(true);
     setError(null);
     try {
       const list = await api.membersForReentry(code);
       if (!list.length) setError('لا يوجد أعضاء لهم رمز شخصي في أسرة بهذا الرمز. تأكد من رمز الدعوة، أو اطلب انضماماً جديداً.');
-      else { setMembers(list); setMemberId(list.length === 1 ? list[0].id : ''); }
+      else {
+        setMembers(list);
+        const mine = list.find((m) => saved?.name && m.full_name === saved.name);
+        setMemberId(mine?.id ?? (list.length === 1 ? list[0].id : ''));
+      }
     } catch (err) { setError((err as Error).message); }
     setBusy(false);
   }
+  // على الجهاز نفسه: رمز الأسرة محفوظ، فنعرض الأسماء مباشرة ويبقى الرمز الشخصي فقط
+  useEffect(() => { if (saved?.code) find(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function enter(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      if (await api.reenter(code, memberId, pin)) { keepStorage(); onDone(); return; }
+      if (await api.reenter(code, memberId, pin)) {
+        rememberMember(code, members?.find((m) => m.id === memberId)?.full_name ?? null);
+        keepStorage(); onDone(); return;
+      }
       setPin('');
       setError('الرمز الشخصي غير صحيح. بعد 5 محاولات خاطئة يُوقف الدخول 15 دقيقة.');
     } catch (err) { setError((err as Error).message); }
@@ -78,7 +97,7 @@ function Reentry({ onDone }: { onDone: () => void }) {
     return (
       <form className="form block" onSubmit={find}>
         {error && <p className="error" role="alert">{error}</p>}
-        <p className="muted small">اكتب رمز دعوة أسرتك (اطلبه من مدير الأسرة إن لم يكن عندك).</p>
+        <p className="muted small">اكتب رمز أسرتك (رمز الدعوة). تجده عند مدير الأسرة، أو في «حسابي» على جهازك القديم. يُطلب مرة واحدة على كل جهاز جديد؛ بعدها يكفي رمزك الشخصي.</p>
         <input placeholder="رمز الدعوة" required dir="ltr" autoCapitalize="characters" autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} />
         <button className="btn primary" disabled={busy}>متابعة</button>
       </form>
@@ -113,7 +132,7 @@ export function Onboarding({ me, onDone }: { me: Profile; onDone: () => void }) 
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
-  const [returning, setReturning] = useState(false);
+  const [returning, setReturning] = useState(() => !!savedMember());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -127,7 +146,7 @@ export function Onboarding({ me, onDone }: { me: Profile; onDone: () => void }) 
     e.preventDefault();
     if (!PIN_RE.test(pin)) return setError('الرمز الشخصي من 4 إلى 8 أرقام.');
     if (pin !== pin2) return setError('الرمزان الشخصيان غير متطابقين.');
-    go(async () => { await api.joinHousehold(code, memberName); await api.setMyPin(pin); });
+    go(async () => { await api.joinHousehold(code, memberName); await api.setMyPin(pin); rememberMember(code, memberName); });
   }
 
   if (me.anonymous) {

@@ -190,6 +190,43 @@ begin
 end $$;
 revoke execute on function public.generate_license_codes(int, text) from public, anon, authenticated;
 
+-- ───────────── التسعير والخصم: يتحكم فيه صاحب التطبيق من صفحة إدارة موقع مشكاة ─────────────
+alter table public.app_info add column if not exists base_price numeric(12, 2);
+alter table public.app_info add column if not exists currency text not null default 'جنيه';
+alter table public.app_info add column if not exists discount_percent numeric(5, 2) not null default 0;
+alter table public.app_info add column if not exists discount_from date;
+alter table public.app_info add column if not exists discount_to date;
+alter table public.app_info add column if not exists updated_at timestamptz;
+
+-- أصحاب التطبيق: بريد كل من يحق له تغيير السعر. يُضاف من SQL Editor فقط، ولا يُكتب في هذا الملف:
+--   insert into public.app_owners (email) values ('بريدك@gmail.com');
+create table if not exists public.app_owners (email text primary key);
+alter table public.app_owners enable row level security; -- بلا سياسات: لا يصل إليه إلا الدوال
+
+create or replace function public.is_app_owner() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from public.app_owners where lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')))
+$$;
+
+create or replace function public.set_pricing(p_base numeric, p_discount numeric, p_from date, p_to date, p_payment text, p_currency text default 'جنيه') returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_app_owner() then raise exception 'تغيير السعر لصاحب التطبيق فقط'; end if;
+  if p_base is null or p_base < 0 then raise exception 'اكتب السعر'; end if;
+  if coalesce(p_discount, 0) < 0 or coalesce(p_discount, 0) > 100 then raise exception 'نسبة الخصم بين 0 و 100'; end if;
+  if coalesce(p_discount, 0) > 0 and (p_from is null or p_to is null or p_to < p_from) then
+    raise exception 'حدد بداية الخصم ونهايته (والنهاية بعد البداية)';
+  end if;
+  update public.app_info set
+    base_price = p_base, discount_percent = coalesce(p_discount, 0),
+    discount_from = case when coalesce(p_discount, 0) > 0 then p_from end,
+    discount_to = case when coalesce(p_discount, 0) > 0 then p_to end,
+    payment_info = nullif(trim(coalesce(p_payment, '')), ''),
+    currency = coalesce(nullif(trim(coalesce(p_currency, '')), ''), 'جنيه'),
+    updated_at = now()
+  where id;
+end $$;
+
 -- ───────────── المصروف الممنوح على دفعات (ميزانية الأسرة الظاهرة للجميع) ─────────────
 -- كل مدير يمنح من دخله مصروفاً لأفراد الأسرة ولنفسه، دفعة واحدة أو عدة دفعات خلال الشهر.
 -- ميزانية العضو في الشهر = مجموع دفعات ذلك الشهر + ما رُحِّل إليه من الشهر السابق بموافقة مدير.
@@ -491,7 +528,7 @@ grant select, delete on public.allowance_grants to authenticated;
 
 do $$ declare p record; begin
   for p in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants', 'license_codes', 'app_info', 'member_pins')
+    and tablename in ('households', 'profiles', 'categories', 'beneficiaries', 'incomes', 'expenses', 'audit_log', 'receipt_scans', 'allowance_grants', 'license_codes', 'app_info', 'member_pins', 'app_owners')
   loop execute format('drop policy %I on public.%I', p.policyname, p.tablename); end loop;
 end $$;
 
@@ -685,12 +722,12 @@ end $$;
 revoke execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text), public.is_app_owner(), public.set_pricing(numeric, numeric, date, date, text, text)
   from anon, public;
 grant execute on function
   public.import_legacy(jsonb), public.get_summary(), public.my_role(), public.my_household(),
   public.create_household(text), public.join_household(text, text), public.leave_household(), public.claim_receipt_scan(),
-  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text)
+  public.delete_household(), public.delete_account(), public.get_budgets(), public.add_grant(uuid, text, numeric, text), public.carry_over(uuid, text, boolean), public.set_my_avatar(text), public.household_active(), public.redeem_license(text), public.set_my_pin(text), public.my_pin_set(), public.members_for_reentry(text), public.reenter(text, uuid, text), public.is_app_owner(), public.set_pricing(numeric, numeric, date, date, text, text)
   to authenticated;
 
 -- ───────────── تخزين صور الفواتير (خاص، مجلد لكل أسرة) ─────────────

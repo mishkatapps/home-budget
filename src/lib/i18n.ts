@@ -23,7 +23,10 @@ export function setLang(l: Lang) {
   try { localStorage.setItem(KEY, l); } catch { /* تخزين محجوب */ }
   const url = new URL(location.href);
   url.searchParams.delete('lang');
-  location.replace(url.toString());
+  url.hash = ''; // بقايا «#» بعد الدخول بجوجل تجعل الانتقال قفزة داخل الصفحة بلا إعادة تحميل
+  const next = url.toString().replace(/#$/, '');
+  if (next === location.href.replace(/#.*$/, '')) location.reload();
+  else location.replace(next);
 }
 
 const ARABIC = /[؀-ۿ]/;
